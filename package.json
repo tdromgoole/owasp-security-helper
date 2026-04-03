@@ -1,0 +1,125 @@
+{
+	"name": "owasp-security-helper",
+	"displayName": "OWASP Security Helper",
+	"description": "Detects insecure coding practices with OWASP Top 10 rules, Content Security Policy analysis, severity levels, inline diagnostics, quick fixes, and a security report panel.",
+	"version": "0.1.0",
+	"publisher": "your-publisher-id",
+	"engines": {
+		"vscode": "^1.85.0"
+	},
+	"categories": [
+		"Linters",
+		"Other"
+	],
+	"keywords": [
+		"owasp",
+		"security",
+		"csp",
+		"content security policy",
+		"secure coding",
+		"vulnerability",
+		"injection",
+		"xss",
+		"csrf"
+	],
+	"activationEvents": [
+		"onLanguage:javascript",
+		"onLanguage:javascriptreact",
+		"onLanguage:typescript",
+		"onLanguage:typescriptreact",
+		"onLanguage:python",
+		"onLanguage:php"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"commands": [
+			{
+				"command": "owaspHelper.showReport",
+				"title": "OWASP Helper: Show Security Report"
+			},
+			{
+				"command": "owaspHelper.scanWorkspace",
+				"title": "OWASP Helper: Scan Workspace"
+			},
+			{
+				"command": "owaspHelper.checkForUpdates",
+				"title": "OWASP Helper: Check for Rule Updates"
+			},
+			{
+				"command": "owaspHelper.showRulesStatus",
+				"title": "OWASP Helper: Show Rules Status"
+			}
+		],
+		"menus": {
+			"commandPalette": [
+				{
+					"command": "owaspHelper.showReport"
+				},
+				{
+					"command": "owaspHelper.scanWorkspace"
+				},
+				{
+					"command": "owaspHelper.checkForUpdates"
+				},
+				{
+					"command": "owaspHelper.showRulesStatus"
+				}
+			]
+		},
+		"configuration": {
+			"title": "OWASP Security Helper",
+			"properties": {
+				"owaspHelper.enableOnSave": {
+					"type": "boolean",
+					"default": true,
+					"description": "Run security scan automatically on file save."
+				},
+				"owaspHelper.severity": {
+					"type": "string",
+					"enum": [
+						"all",
+						"critical",
+						"warning",
+						"info"
+					],
+					"default": "all",
+					"description": "Minimum severity level to report."
+				},
+				"owaspHelper.ignoredRules": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [],
+					"description": "List of rule IDs to suppress (e.g. ['A03-SQL-INJECTION'])."
+				},
+				"owaspHelper.autoCheckForUpdates": {
+					"type": "boolean",
+					"default": true,
+					"description": "Automatically check for new rule updates on startup (once per day)."
+				},
+				"owaspHelper.rulesManifestUrl": {
+					"type": "string",
+					"default": "https://raw.githubusercontent.com/your-org/owasp-security-helper/main/rules-manifest.json",
+					"description": "URL of the remote rules manifest JSON used to check for rule updates."
+				}
+			}
+		}
+	},
+	"scripts": {
+		"vscode:prepublish": "npm run compile",
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./",
+		"lint": "eslint src --ext ts",
+		"package": "vsce package"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"@types/vscode": "^1.85.0",
+		"@typescript-eslint/eslint-plugin": "^6.0.0",
+		"@typescript-eslint/parser": "^6.0.0",
+		"eslint": "^8.0.0",
+		"typescript": "^5.3.0",
+		"@vscode/vsce": "^2.22.0"
+	}
+}
