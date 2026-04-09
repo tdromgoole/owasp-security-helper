@@ -140,21 +140,12 @@ export const owaspRules: SecurityRule[] = [
 			"typescript",
 			"typescriptreact",
 			"python",
-			"php",
 		],
 		patterns: [
-			// JS/TS: query function called with string concatenation using user input
+			// JS/TS: query/execute called with string concatenation using user input
 			/(?:query|execute|exec|raw)\s*\(\s*[`"'].*\+\s*(?:req\.|request\.|_GET|_POST|\$_GET|\$_POST|\$_REQUEST|params\.|body\.)/i,
-			// JS/TS: query function called with template literal containing user input
+			// JS/TS: query/execute called with template literal containing user input
 			/(?:query|execute|exec|raw)\s*\(\s*`[^`]*\$\{[^}]*(?:req|request|params|body|query)/i,
-			// PHP: mysql_query/mysqli_query/pg_query passed a concatenated variable
-			/(?:mysql_query|mysqli_query|pg_query)\s*\([^)]*\.\s*\$/i,
-			// PHP: SQL keyword anywhere on line, followed by dot-concat with a PHP variable
-			// Catches: $sql = "SELECT ... WHERE x = '".$var."'";
-			/(?:SELECT|INSERT|UPDATE|DELETE|EXEC)\b.*\.\s*\$\w+/i,
-			// PHP: variable assigned a string that contains SQL keyword and dot-concat
-			// Catches assignment forms: $q = "... FROM ... " . $var
-			/\$\w+\s*=\s*["'].*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM)\b.*\.\s*\$\w+/i,
 			// Python: % string formatting with SQL keywords
 			/["'].*(?:SELECT|INSERT|UPDATE|DELETE)\b.*["']\s*%\s*(?:\(|\w)/i,
 		],

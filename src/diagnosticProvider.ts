@@ -25,6 +25,8 @@ const SUPPORTED_LANGUAGES = new Set([
 	"typescriptreact",
 	"python",
 	"php",
+	"apacheconf",
+	"xml",
 ]);
 
 /** Map our severity to VS Code DiagnosticSeverity */
@@ -53,6 +55,29 @@ function meetsThreshold(ruleSeverity: Severity, threshold: string): boolean {
 	return (
 		SEVERITY_ORDER[ruleSeverity] <= SEVERITY_ORDER[threshold as Severity]
 	);
+}
+
+/**
+ * Returns the justification text if the line preceding `lineIdx` contains
+ * an `owasp-ignore: RULE-ID -- reason` comment suppressing `ruleId`.
+ * Supports both `//` (JS/TS/PHP) and `#` (Python) comment styles.
+ */
+function getIgnoreJustification(
+	document: vscode.TextDocument,
+	lineIdx: number,
+	ruleId: string,
+): string | undefined {
+	if (lineIdx === 0) {
+		return undefined;
+	}
+	const prevLine = document.lineAt(lineIdx - 1).text.trim();
+	const m = prevLine.match(
+		/^(?:\/\/|#)\s*owasp-ignore:\s*([A-Z0-9_-]+)\s*(?:--\s*(.*))?$/i,
+	);
+	if (m && m[1].toUpperCase() === ruleId.toUpperCase()) {
+		return m[2]?.trim() || "(no justification provided)";
+	}
+	return undefined;
 }
 
 /**
@@ -86,6 +111,13 @@ export function scanDocument(document: vscode.TextDocument): SecurityFinding[] {
 		for (let lineIdx = 0; lineIdx < lineCount; lineIdx++) {
 			const lineText = document.lineAt(lineIdx).text;
 
+			// Skip lines that are too long to come from hand-written code.
+			// Regex patterns with .* have O(n²) backtracking on long lines and
+			// will freeze the extension host (e.g. inlined data URIs, minified blobs).
+			if (lineText.length > 2000) {
+				continue;
+			}
+
 			for (const pattern of rule.patterns) {
 				// Reset lastIndex for global regexes
 				pattern.lastIndex = 0;
@@ -93,6 +125,11 @@ export function scanDocument(document: vscode.TextDocument): SecurityFinding[] {
 				if (match) {
 					const startChar = match.index ?? lineText.indexOf(match[0]);
 					const endChar = startChar + match[0].length;
+					const justification = getIgnoreJustification(
+						document,
+						lineIdx,
+						rule.id,
+					);
 					findings.push({
 						rule,
 						line: lineIdx,
@@ -100,6 +137,7 @@ export function scanDocument(document: vscode.TextDocument): SecurityFinding[] {
 						endChar,
 						matchedText: match[0],
 						filePath,
+						justification,
 					});
 					break; // one finding per rule per line is enough
 				}
@@ -118,7 +156,9 @@ export function publishDiagnostics(
 	findings: SecurityFinding[],
 	collection: vscode.DiagnosticCollection,
 ): void {
-	const diagnostics: vscode.Diagnostic[] = findings.map((f) => {
+	// Do not raise diagnostics for findings suppressed with owasp-ignore comments
+	const activeFindings = findings.filter((f) => !f.justification);
+	const diagnostics: vscode.Diagnostic[] = activeFindings.map((f) => {
 		const range = new vscode.Range(f.line, f.startChar, f.line, f.endChar);
 		const message = `[${f.rule.id}] ${f.rule.title}: ${f.rule.description}`;
 		const diag = new vscode.Diagnostic(

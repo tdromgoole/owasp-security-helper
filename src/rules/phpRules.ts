@@ -62,7 +62,7 @@ export const phpRules: SecurityRule[] = [
 		fixDescription:
 			"Validate redirect targets against an allowlist of known safe URLs before redirecting.",
 		reference:
-			"https://owasp.org/www-community/attacks/Unvalidated_Redirects_and_Forwards_Cheat_Sheet",
+			"https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html",
 	},
 
 	// ── Header injection ──────────────────────────────────────────────────────
@@ -255,5 +255,32 @@ export const phpRules: SecurityRule[] = [
 			"Use password_hash($password, PASSWORD_BCRYPT) to store passwords " +
 			"and password_verify() to check them.",
 		reference: "https://www.php.net/manual/en/function.password-hash.php",
+	},
+
+	// ── PHP SQL injection (dot-concatenation) ─────────────────────────────────
+
+	{
+		id: "PHP-SQL-INJECTION",
+		category: "A03: Injection",
+		title: "Potential SQL injection via PHP string concatenation",
+		description:
+			"Building SQL queries by dot-concatenating PHP variables allows attackers to " +
+			"manipulate the query. Use PDO or MySQLi prepared statements instead.",
+		severity: "critical",
+		languages: ["php"],
+		patterns: [
+			// mysqli_query / pg_query called with a concatenated variable
+			/(?:mysqli_query|pg_query)\s*\([^)]*\.\s*\$/i,
+			// SQL keyword on the line, followed by PHP dot-concat with a variable
+			// e.g.  $sql = "SELECT ... WHERE email = '".$email."'";
+			/(?:SELECT|INSERT|UPDATE|DELETE|EXEC)\b.*\.\s*\$\w+/i,
+			// PHP variable assigned a SQL string with dot-concat
+			// e.g.  $q = "SELECT ... FROM t WHERE x = " . $var;
+			/\$\w+\s*=\s*["'].*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM)\b.*\.\s*\$\w+/i,
+		],
+		fixDescription:
+			"Use PDO or MySQLi prepared statements with bound parameters. " +
+			"Never concatenate user input directly into SQL strings.",
+		reference: "https://owasp.org/Top10/A03_2021-Injection/",
 	},
 ];

@@ -39,4 +39,9 @@ export interface SecurityFinding {
 	/** The matched source text */
 	matchedText: string;
 	filePath: string;
+	/**
+	 * When set, the finding was suppressed by an `owasp-ignore` comment.
+	 * Contains the justification text from that comment.
+	 */
+	justification?: string;
 }

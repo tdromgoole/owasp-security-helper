@@ -28,7 +28,10 @@
 		"onLanguage:typescript",
 		"onLanguage:typescriptreact",
 		"onLanguage:python",
-		"onLanguage:php"
+		"onLanguage:php",
+		"onCommand:owaspHelper.scanWorkspace",
+		"onCommand:owaspHelper.showReport",
+		"onCommand:owaspHelper.openSavedReport"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -48,6 +51,10 @@
 			{
 				"command": "owaspHelper.showRulesStatus",
 				"title": "OWASP Helper: Show Rules Status"
+			},
+			{
+				"command": "owaspHelper.openSavedReport",
+				"title": "OWASP Helper: Open in Browser"
 			}
 		],
 		"menus": {
@@ -63,6 +70,29 @@
 				},
 				{
 					"command": "owaspHelper.showRulesStatus"
+				},
+				{
+					"command": "owaspHelper.openSavedReport",
+					"when": "false"
+				}
+			],
+			"explorer/context": [
+				{
+					"command": "owaspHelper.scanWorkspace",
+					"group": "security@1",
+					"when": "explorerResourceIsFolder"
+				},
+				{
+					"command": "owaspHelper.openSavedReport",
+					"group": "security@1",
+					"when": "resourceExtname == .html && resourcePath =~ /\\.securityReport[\\\\/]/"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "owaspHelper.scanWorkspace",
+					"group": "navigation",
+					"when": "resourceLangId =~ /javascript|typescript|python|php/"
 				}
 			]
 		},
