@@ -5,6 +5,27 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [0.2.0] — 2026-04-08
+
+### Added
+
+- **New rule: `PHP-SQL-INJECTION`** — dedicated PHP-only rule detecting SQL queries built via string concatenation (dot-concat patterns). Split out from the shared `A03-SQL-INJECTION` rule to eliminate false positives on JS/TS files.
+- **Apache / IIS config file scanning** — workspace scan now covers `.conf`, `web.config` / `.config`, and `.htaccess` files. CSP and General rules fire on these file types, enabling detection of missing or misconfigured security headers in server configuration files.
+- **Saved report companion JSON** — each workspace scan now writes both a `.html` and a `.json` report to `.securityReport/YYYY-MM-DD_HH-MM-SS.{html,json}`. The JSON is used to reload a saved report into the panel without rescanning.
+- **Justification persistence** — suppression comments added via "Add Justification" are saved to disk immediately so they survive subsequent raw-byte rescans.
+- **Severity filter chips** — the report panel summary bar now has clickable severity filter chips (Critical / Warnings / Info / Mitigated). The Mitigated chip is mutually exclusive with the severity chips.
+
+### Fixed
+
+- **Scan stalling on large workspaces** — replaced `openTextDocument` with a raw-byte reader (`openForScan`) that skips VS Code's tokenizer and language servers. Files over 512 KB are skipped entirely; lines over 2000 characters are ignored to prevent regex backtracking freezes.
+- **Duplicate findings after rescan** — added a `seenKeys` deduplication set keyed on `rule + normalised path + line`. Path normalisation now converts `\` to `/` before lower-casing so that Windows forward-slash and backslash variants of the same path produce the same key.
+- **Info findings visible when Mitigated filter active** — the Mitigated filter chip now clears all active severity filters when clicked, and any severity chip clears the Mitigated filter. Both groups can no longer be shown simultaneously.
+- **PHP SQL injection false positives on JS/TS** — removed `"php"` from the language list of `A03-SQL-INJECTION`; PHP files are now handled exclusively by the new `PHP-SQL-INJECTION` rule.
+- **`.webconfig` glob matched nothing** — IIS config files have the extension `.config`, not `.webconfig`. Corrected the workspace scan glob to `**/*.{js,jsx,ts,tsx,py,php,conf,config}` and added a separate `findFiles("**/.htaccess")` pass.
+- **Concurrent scan lock** — added an `isScanning` guard to prevent a second scan from starting while one is already in progress.
+
+---
+
 ## [0.1.0] — 2026-04-03
 
 Initial public release. **85 rules** across 6 categories.

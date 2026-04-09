@@ -2,7 +2,7 @@
 	"name": "owasp-security-helper",
 	"displayName": "OWASP Security Helper",
 	"description": "Detects insecure coding practices with OWASP Top 10 rules, Content Security Policy analysis, severity levels, inline diagnostics, quick fixes, and a security report panel.",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"publisher": "your-publisher-id",
 	"engines": {
 		"vscode": "^1.85.0"

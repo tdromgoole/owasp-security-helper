@@ -2,26 +2,28 @@
 
 A VS Code extension that detects insecure coding practices in real time using **OWASP Top 10 (2021)** rules, **Content Security Policy** analysis, dedicated **PHP** and **JavaScript / TypeScript** rule packs, and **PHP input validation** patterns based on the OWASP Input Validation Cheat Sheet.
 
-**85 rules** across 6 categories — diagnostics appear inline as you type, with Quick Fix actions and a full security report panel.
+**86 rules** across 6 categories — diagnostics appear inline as you type, with Quick Fix actions and a full security report panel.
 
 ---
 
 ## Features
 
-| Feature                           | Detail                                                                              |
-| --------------------------------- | ----------------------------------------------------------------------------------- |
-| **Real-time inline diagnostics**  | Red/yellow/blue squiggles appear as you type or on save                             |
-| **OWASP Top 10 (2021) — A01–A10** | Full coverage: 27 rules for JS/TS, Python, and PHP                                  |
-| **PHP security rules**            | 13 PHP-specific rules covering XSS, injection, file upload, type juggling, and more |
-| **PHP input validation rules**    | 18 rules based on the OWASP Input Validation Cheat Sheet                            |
-| **JavaScript / TypeScript rules** | 12 rules for dangerous DOM APIs, NoSQL injection, JWT, rate limiting, and more      |
-| **CSP analysis**                  | 8 rules detecting `unsafe-inline`, wildcards, missing directives, and report-uri    |
-| **General secure-coding rules**   | 7 rules covering hardcoded secrets, insecure TLS, prototype pollution, XXE, ReDoS   |
-| **Severity levels**               | Critical 🔴 / Warning 🟡 / Info 🔵 — configurable minimum threshold                 |
-| **Quick Fixes**                   | Auto-fix, suppress with comment, or open OWASP reference docs                       |
-| **Security Report panel**         | Full webview summary with findings grouped by severity                              |
-| **Workspace scan**                | Scan every supported file across the workspace at once                              |
-| **Rule update checker**           | Compares bundled rules against a remote manifest and notifies on new versions       |
+| Feature                           | Detail                                                                                                          |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Real-time inline diagnostics**  | Red/yellow/blue squiggles appear as you type or on save                                                         |
+| **OWASP Top 10 (2021) — A01–A10** | Full coverage: 27 rules for JS/TS, Python, and PHP                                                              |
+| **PHP security rules**            | 13 PHP-specific rules covering XSS, injection, file upload, type juggling, and more                             |
+| **PHP input validation rules**    | 18 rules based on the OWASP Input Validation Cheat Sheet                                                        |
+| **JavaScript / TypeScript rules** | 12 rules for dangerous DOM APIs, NoSQL injection, JWT, rate limiting, and more                                  |
+| **CSP analysis**                  | 8 rules detecting `unsafe-inline`, wildcards, missing directives, and report-uri                                |
+| **General secure-coding rules**   | 7 rules covering hardcoded secrets, insecure TLS, prototype pollution, XXE, ReDoS                               |
+| **Severity levels**               | Critical 🔴 / Warning 🟡 / Info 🔵 — configurable minimum threshold                                             |
+| **Quick Fixes**                   | Auto-fix, suppress with comment, or open OWASP reference docs                                                   |
+| **Security Report panel**         | Full webview summary: filter by severity, By Severity / By File views, severity filter chips, mitigated section |
+| **Workspace scan**                | Scan every supported file across the workspace; raw-byte reader bypasses the tokenizer for large files          |
+| **Saved HTML + JSON reports**     | Each scan writes a timestamped `.html` + `.json` report to `.securityReport/`                                   |
+| **Justification / mitigation**    | Add a suppression justification in-source; persists across rescans                                              |
+| **Rule update checker**           | Compares bundled rules against a remote manifest and notifies on new versions                                   |
 
 ---
 
@@ -52,12 +54,14 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 ## Supported Languages
 
-| Language         | Rule packs applied               |
-| ---------------- | -------------------------------- |
-| JavaScript / JSX | OWASP, CSP, General, JS/TS       |
-| TypeScript / TSX | OWASP, CSP, General, JS/TS       |
-| PHP              | OWASP, PHP, PHP Input Validation |
-| Python           | OWASP, General                   |
+| Language                     | Rule packs applied               |
+| ---------------------------- | -------------------------------- |
+| JavaScript / JSX             | OWASP, CSP, General, JS/TS       |
+| TypeScript / TSX             | OWASP, CSP, General, JS/TS       |
+| PHP                          | OWASP, PHP, PHP Input Validation |
+| Python                       | OWASP, General                   |
+| Apache config / `.htaccess`  | CSP, General                     |
+| IIS `web.config` / `.config` | CSP, General                     |
 
 ---
 
@@ -126,7 +130,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 ---
 
-### D: PHP Security — 13 rules
+### D: PHP Security — 14 rules
 
 | Rule ID                         | What it detects                                          | Severity |
 | ------------------------------- | -------------------------------------------------------- | -------- |
@@ -143,6 +147,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 | `PHP-LDAP-INJECTION`            | User input used in LDAP search without escaping          | Critical |
 | `PHP-TYPE-JUGGLING`             | Loose comparison (`==`) used with user-supplied data     | Warning  |
 | `PHP-PLAIN-PASSWORD-STORE`      | Password stored without hashing                          | Critical |
+| `PHP-SQL-INJECTION`             | SQL query built via PHP string concatenation             | Critical |
 
 ---
 
