@@ -20,6 +20,18 @@ export interface SecurityRule {
 	 * A match triggers the diagnostic.
 	 */
 	patterns: RegExp[];
+	/**
+	 * When set, the rule fires if this pattern does NOT match anywhere in the
+	 * full document text. Use for "missing required header/directive" checks.
+	 * The rule still respects the `languages` filter.
+	 */
+	documentMustMatch?: RegExp;
+	/**
+	 * When set, the rule only applies to files whose base name matches this
+	 * pattern. Useful for restricting broad language IDs (e.g. "xml") to
+	 * specific config files such as web.config.
+	 */
+	fileNamePattern?: RegExp;
 	/** Suggested fix description shown in the Quick Fix menu */
 	fixDescription?: string;
 	/** Optional replacement factory (line text → fixed line text) */

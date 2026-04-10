@@ -1,8 +1,8 @@
 {
 	"name": "owasp-security-helper",
 	"displayName": "OWASP Security Helper",
-	"description": "Detects insecure coding practices with OWASP Top 10 rules, Content Security Policy analysis, severity levels, inline diagnostics, quick fixes, and a security report panel.",
-	"version": "0.2.0",
+	"description": "Detects insecure coding practices with OWASP Top 10 rules, Content Security Policy, HTTP security headers, PHP/JS/TS/Python input validation, and file upload patterns — inline diagnostics, quick fixes, and a security report panel.",
+	"version": "0.3.0",
 	"publisher": "your-publisher-id",
 	"engines": {
 		"vscode": "^1.85.0"
@@ -29,7 +29,9 @@
 		"onLanguage:typescriptreact",
 		"onLanguage:python",
 		"onLanguage:php",
+		"onCommand:owaspHelper.checkDependencies",
 		"onCommand:owaspHelper.scanWorkspace",
+		"onCommand:owaspHelper.scanWorkspaceFull",
 		"onCommand:owaspHelper.showReport",
 		"onCommand:owaspHelper.openSavedReport"
 	],
@@ -42,7 +44,15 @@
 			},
 			{
 				"command": "owaspHelper.scanWorkspace",
-				"title": "OWASP Helper: Scan Workspace"
+				"title": "OWASP Helper: Fast Scan (No large files)"
+			},
+			{
+				"command": "owaspHelper.scanWorkspaceFull",
+				"title": "OWASP Helper: Full Scan (Including large files)"
+			},
+			{
+				"command": "owaspHelper.checkDependencies",
+				"title": "OWASP Helper: Check Dependencies"
 			},
 			{
 				"command": "owaspHelper.checkForUpdates",
@@ -66,6 +76,12 @@
 					"command": "owaspHelper.scanWorkspace"
 				},
 				{
+					"command": "owaspHelper.scanWorkspaceFull"
+				},
+				{
+					"command": "owaspHelper.checkDependencies"
+				},
+				{
 					"command": "owaspHelper.checkForUpdates"
 				},
 				{
@@ -83,6 +99,11 @@
 					"when": "explorerResourceIsFolder"
 				},
 				{
+					"command": "owaspHelper.scanWorkspaceFull",
+					"group": "security@2",
+					"when": "explorerResourceIsFolder"
+				},
+				{
 					"command": "owaspHelper.openSavedReport",
 					"group": "security@1",
 					"when": "resourceExtname == .html && resourcePath =~ /\\.securityReport[\\\\/]/"
@@ -91,6 +112,11 @@
 			"editor/title": [
 				{
 					"command": "owaspHelper.scanWorkspace",
+					"group": "navigation",
+					"when": "resourceLangId =~ /javascript|typescript|python|php/"
+				},
+				{
+					"command": "owaspHelper.scanWorkspaceFull",
 					"group": "navigation",
 					"when": "resourceLangId =~ /javascript|typescript|python|php/"
 				}
@@ -123,6 +149,32 @@
 					"default": [],
 					"description": "List of rule IDs to suppress (e.g. ['A03-SQL-INJECTION'])."
 				},
+				"owaspHelper.fastScanExclude": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"**/node_modules/**",
+						"**/out/**",
+						"**/dist/**",
+						"**/.venv/**",
+						"**/*.min.js",
+						"**/*.min.jsx"
+					],
+					"description": "Glob patterns to exclude during a Fast Scan (No large files)."
+				},
+				"owaspHelper.fullScanExclude": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"default": [
+						"**/out/**",
+						"**/dist/**"
+					],
+					"description": "Glob patterns to exclude during a Full Scan (Including large files)."
+				},
 				"owaspHelper.autoCheckForUpdates": {
 					"type": "boolean",
 					"default": true,
@@ -137,7 +189,9 @@
 		}
 	},
 	"scripts": {
-		"vscode:prepublish": "npm run compile",
+		"vscode:prepublish": "npm run clean && npm run bundle",
+		"bundle": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --minify",
+		"clean": "node -e \"require('fs').readdirSync('out', {withFileTypes:true}).forEach(f => { const p = 'out/' + f.name; if (f.isDirectory()) require('fs').rmSync(p, {recursive:true}); else if (f.name !== '.gitkeep') require('fs').unlinkSync(p); })\" || true",
 		"compile": "tsc -p ./",
 		"watch": "tsc -watch -p ./",
 		"lint": "eslint src --ext ts",
@@ -148,8 +202,9 @@
 		"@types/vscode": "^1.85.0",
 		"@typescript-eslint/eslint-plugin": "^6.0.0",
 		"@typescript-eslint/parser": "^6.0.0",
+		"@vscode/vsce": "^2.22.0",
+		"esbuild": "^0.28.0",
 		"eslint": "^8.0.0",
-		"typescript": "^5.3.0",
-		"@vscode/vsce": "^2.22.0"
+		"typescript": "^5.3.0"
 	}
 }

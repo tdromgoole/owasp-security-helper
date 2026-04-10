@@ -5,6 +5,31 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [0.3.0] — 2026-04-09
+
+### Added
+
+- **Input Validation & File Upload rules (JS/TS + Python)** — 12 new rules in `inputValidationRules.ts` based on the OWASP [Input Validation](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html) and [File Upload](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html) Cheat Sheets:
+    - `IV-JS-UPLOAD-MIME-TRUST` — trusting `req.file.mimetype` (client-controlled) for upload security checks
+    - `IV-JS-UPLOAD-ORIGINAL-NAME` — `req.file.originalname` used directly as a storage path (path traversal risk)
+    - `IV-JS-PARSE-NO-NAN-CHECK` — `parseInt()` / `Number()` on request params without `isNaN` / `isFinite()` guard
+    - `IV-JS-DENYLIST-SANITIZE` — denylist HTML sanitisation via `String.replace()` stripping `<script>` or event handlers
+    - `IV-PY-INT-NO-EXCEPTION` — `int(request...)` / `float(request...)` without `try/except` (unhandled `ValueError`)
+    - `IV-PY-EVAL-INPUT` — `eval(request.args...)` or equivalent (arbitrary Python code execution)
+    - `IV-PY-SSTI-RENDER` — Flask `render_template_string()` with user input or f-string (Jinja2 SSTI)
+    - `IV-PY-OPEN-REDIRECT` — Flask `redirect(request.args...)` without URL validation
+    - `IV-PY-UPLOAD-ORIGINAL-NAME` — `request.files[key].filename` used directly as a storage path
+    - `IV-PY-UPLOAD-MIME-TRUST` — trusting `request.files[key].content_type` / `.mimetype` for type validation
+    - `IV-PY-UPLOAD-WEB-ROOT` — `file.save()` targeting `static/`, `uploads/`, or `public/` paths inside the web root
+    - `IV-PY-ZIP-NO-VALIDATION` — `zipfile.extractall()` without path-traversal validation (Zip Slip)
+- **esbuild bundling** — `vscode:prepublish` now runs a `clean` + `esbuild` pipeline, producing a single minified `out/extension.js` (~139 KB) in ~5 ms. Development builds (`npm run compile`, `npm run watch`) are unchanged. `.vscodeignore` updated to a whitelist so only `out/extension.js`, `package.json`, `LICENSE`, and `README.md` are included in the `.vsix`.
+
+### Fixed
+
+- **PHP SQL injection false positives on plain English strings** — tightened the three `PHP-SQL-INJECTION` patterns to require the SQL keyword to appear at or near the opening quote of a string literal. Phrases such as `"To update your password, log in..."` no longer trigger the rule.
+
+---
+
 ## [0.2.0] — 2026-04-08
 
 ### Added

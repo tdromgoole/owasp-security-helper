@@ -1,29 +1,31 @@
 # OWASP Security Helper
 
-A VS Code extension that detects insecure coding practices in real time using **OWASP Top 10 (2021)** rules, **Content Security Policy** analysis, dedicated **PHP** and **JavaScript / TypeScript** rule packs, and **PHP input validation** patterns based on the OWASP Input Validation Cheat Sheet.
+A VS Code extension that detects insecure coding practices in real time using **OWASP Top 10 (2021)** rules, **Content Security Policy** analysis, dedicated **PHP**, **JavaScript / TypeScript**, and **Python** rule packs, HTTP security header validation for Apache / nginx / IIS, and input validation and file upload patterns based on the OWASP Cheat Sheet Series.
 
-**86 rules** across 6 categories — diagnostics appear inline as you type, with Quick Fix actions and a full security report panel.
+**110 rules** across 8 categories — diagnostics appear inline as you type, with Quick Fix actions and a full security report panel.
 
 ---
 
 ## Features
 
-| Feature                           | Detail                                                                                                          |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **Real-time inline diagnostics**  | Red/yellow/blue squiggles appear as you type or on save                                                         |
-| **OWASP Top 10 (2021) — A01–A10** | Full coverage: 27 rules for JS/TS, Python, and PHP                                                              |
-| **PHP security rules**            | 13 PHP-specific rules covering XSS, injection, file upload, type juggling, and more                             |
-| **PHP input validation rules**    | 18 rules based on the OWASP Input Validation Cheat Sheet                                                        |
-| **JavaScript / TypeScript rules** | 12 rules for dangerous DOM APIs, NoSQL injection, JWT, rate limiting, and more                                  |
-| **CSP analysis**                  | 8 rules detecting `unsafe-inline`, wildcards, missing directives, and report-uri                                |
-| **General secure-coding rules**   | 7 rules covering hardcoded secrets, insecure TLS, prototype pollution, XXE, ReDoS                               |
-| **Severity levels**               | Critical 🔴 / Warning 🟡 / Info 🔵 — configurable minimum threshold                                             |
-| **Quick Fixes**                   | Auto-fix, suppress with comment, or open OWASP reference docs                                                   |
-| **Security Report panel**         | Full webview summary: filter by severity, By Severity / By File views, severity filter chips, mitigated section |
-| **Workspace scan**                | Scan every supported file across the workspace; raw-byte reader bypasses the tokenizer for large files          |
-| **Saved HTML + JSON reports**     | Each scan writes a timestamped `.html` + `.json` report to `.securityReport/`                                   |
-| **Justification / mitigation**    | Add a suppression justification in-source; persists across rescans                                              |
-| **Rule update checker**           | Compares bundled rules against a remote manifest and notifies on new versions                                   |
+| Feature                            | Detail                                                                                                          |
+| ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| **Real-time inline diagnostics**   | Red/yellow/blue squiggles appear as you type or on save                                                         |
+| **OWASP Top 10 (2021) — A01–A10**  | Full coverage: 27 rules for JS/TS, Python, and PHP                                                              |
+| **PHP security rules**             | 14 PHP-specific rules covering XSS, injection, file upload, type juggling, and more                             |
+| **PHP input validation rules**     | 18 rules based on the OWASP Input Validation Cheat Sheet                                                        |
+| **JavaScript / TypeScript rules**  | 12 rules for dangerous DOM APIs, NoSQL injection, JWT, rate limiting, and more                                  |
+| **HTTP security header rules**     | 12 rules for Apache `.conf` / `.htaccess` and IIS `web.config` — missing or misconfigured security headers      |
+| **Input validation & file upload** | 12 rules for JS/TS and Python: request param coercion, denylist sanitisation, SSTI, open redirect, file upload  |
+| **CSP analysis**                   | 8 rules detecting `unsafe-inline`, wildcards, missing directives, and report-uri                                |
+| **General secure-coding rules**    | 7 rules covering hardcoded secrets, insecure TLS, prototype pollution, XXE, ReDoS                               |
+| **Severity levels**                | Critical 🔴 / Warning 🟡 / Info 🔵 — configurable minimum threshold                                             |
+| **Quick Fixes**                    | Auto-fix, suppress with comment, or open OWASP reference docs                                                   |
+| **Security Report panel**          | Full webview summary: filter by severity, By Severity / By File views, severity filter chips, mitigated section |
+| **Workspace scan**                 | Scan every supported file across the workspace; raw-byte reader bypasses the tokenizer for large files          |
+| **Saved HTML + JSON reports**      | Each scan writes a timestamped `.html` + `.json` report to `.securityReport/`                                   |
+| **Justification / mitigation**     | Add a suppression justification in-source; persists across rescans                                              |
+| **Rule update checker**            | Compares bundled rules against a remote manifest and notifies on new versions                                   |
 
 ---
 
@@ -54,14 +56,14 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 ## Supported Languages
 
-| Language                     | Rule packs applied               |
-| ---------------------------- | -------------------------------- |
-| JavaScript / JSX             | OWASP, CSP, General, JS/TS       |
-| TypeScript / TSX             | OWASP, CSP, General, JS/TS       |
-| PHP                          | OWASP, PHP, PHP Input Validation |
-| Python                       | OWASP, General                   |
-| Apache config / `.htaccess`  | CSP, General                     |
-| IIS `web.config` / `.config` | CSP, General                     |
+| Language                     | Rule packs applied                           |
+| ---------------------------- | -------------------------------------------- |
+| JavaScript / JSX             | OWASP, CSP, General, JS/TS, Input Validation |
+| TypeScript / TSX             | OWASP, CSP, General, JS/TS, Input Validation |
+| PHP                          | OWASP, PHP, PHP Input Validation             |
+| Python                       | OWASP, General, Input Validation             |
+| Apache config / `.htaccess`  | CSP, General, HTTP Headers                   |
+| IIS `web.config` / `.config` | CSP, General, HTTP Headers                   |
 
 ---
 
@@ -194,6 +196,48 @@ Based on the [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp
 | `JS-NO-RATE-LIMIT`            | Express route with no rate-limit middleware                  | Warning  |
 | `JS-CHILD-PROCESS-USER-INPUT` | `child_process.exec` / `spawn` with user-supplied arguments  | Critical |
 | `JS-INSECURE-COOKIE-OPTIONS`  | Cookie set without `httpOnly` or `secure` flags              | Warning  |
+
+---
+
+### G: HTTP Security Headers — 12 rules
+
+Applies to Apache `.conf` / `.htaccess` files and IIS `web.config`. Missing-header rules fire when a directive is absent from the whole file; misconfigured-value rules fire on the offending line.
+
+| Rule ID                          | What it detects                                                               | Severity |
+| -------------------------------- | ----------------------------------------------------------------------------- | -------- |
+| `HDR-MISSING-HSTS`               | `Strict-Transport-Security` header absent                                     | Warning  |
+| `HDR-MISSING-CSP`                | `Content-Security-Policy` header absent                                       | Warning  |
+| `HDR-MISSING-XFO`                | `X-Frame-Options` header absent (clickjacking risk)                           | Warning  |
+| `HDR-MISSING-XCTO`               | `X-Content-Type-Options` header absent (MIME-sniffing risk)                   | Warning  |
+| `HDR-MISSING-REFERRER-POLICY`    | `Referrer-Policy` header absent                                               | Info     |
+| `HDR-MISSING-PERMISSIONS-POLICY` | `Permissions-Policy` header absent                                            | Info     |
+| `HDR-MISSING-COOP`               | `Cross-Origin-Opener-Policy` header absent                                    | Info     |
+| `HDR-MISSING-XSS-PROTECTION`     | `X-XSS-Protection` not explicitly set                                         | Info     |
+| `HDR-HSTS-DISABLED`              | HSTS `max-age=0` — policy explicitly removed                                  | Critical |
+| `HDR-HSTS-NO-SUBDOMAINS`         | HSTS missing `includeSubDomains` directive                                    | Warning  |
+| `HDR-XFO-ALLOWALL`               | `X-Frame-Options` set to `ALLOWALL` (unrecognised; treated as no restriction) | Critical |
+| `HDR-REFERRER-UNSAFE`            | `Referrer-Policy` set to `unsafe-url` (leaks full URL to all origins)         | Warning  |
+
+---
+
+### H: Input Validation & File Upload (JS/TS + Python) — 12 rules
+
+Based on the [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html) and [File Upload Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html).
+
+| Rule ID                      | What it detects                                                                  | Severity |
+| ---------------------------- | -------------------------------------------------------------------------------- | -------- |
+| `IV-JS-UPLOAD-MIME-TRUST`    | `req.file.mimetype` used in a security check (client-controlled header)          | Critical |
+| `IV-JS-UPLOAD-ORIGINAL-NAME` | `req.file.originalname` used as a storage path (path traversal risk)             | Critical |
+| `IV-JS-PARSE-NO-NAN-CHECK`   | `parseInt()` / `Number()` on request params without `isNaN` / `isFinite()` guard | Warning  |
+| `IV-JS-DENYLIST-SANITIZE`    | `String.replace()` stripping `<script>` / event handlers (denylist approach)     | Warning  |
+| `IV-PY-INT-NO-EXCEPTION`     | `int(request...)` / `float(request...)` without `try/except ValueError`          | Critical |
+| `IV-PY-EVAL-INPUT`           | `eval(request.args...)` — arbitrary Python code execution                        | Critical |
+| `IV-PY-SSTI-RENDER`          | Flask `render_template_string()` with user input or f-string (Jinja2 SSTI)       | Critical |
+| `IV-PY-OPEN-REDIRECT`        | Flask `redirect(request.args...)` without URL validation                         | Critical |
+| `IV-PY-UPLOAD-ORIGINAL-NAME` | `request.files[key].filename` used directly as a storage path                    | Critical |
+| `IV-PY-UPLOAD-MIME-TRUST`    | Trusting `request.files[key].content_type` / `.mimetype` for type validation     | Critical |
+| `IV-PY-UPLOAD-WEB-ROOT`      | `file.save()` targeting `static/`, `uploads/`, or `public/` inside the web root  | Critical |
+| `IV-PY-ZIP-NO-VALIDATION`    | `zipfile.extractall()` without path-traversal validation (Zip Slip)              | Critical |
 
 ---
 

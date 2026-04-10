@@ -271,12 +271,18 @@ export const phpRules: SecurityRule[] = [
 		patterns: [
 			// mysqli_query / pg_query called with a concatenated variable
 			/(?:mysqli_query|pg_query)\s*\([^)]*\.\s*\$/i,
-			// SQL keyword on the line, followed by PHP dot-concat with a variable
+			// SQL keyword at the START of a quoted string, followed by PHP dot-concat with a variable
 			// e.g.  $sql = "SELECT ... WHERE email = '".$email."'";
-			/(?:SELECT|INSERT|UPDATE|DELETE|EXEC)\b.*\.\s*\$\w+/i,
-			// PHP variable assigned a SQL string with dot-concat
-			// e.g.  $q = "SELECT ... FROM t WHERE x = " . $var;
-			/\$\w+\s*=\s*["'].*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM)\b.*\.\s*\$\w+/i,
+			// Requiring ["'] immediately before the keyword prevents matching SQL words used in
+			// plain English strings (e.g. "To update your password...").
+			/["']\s*(?:SELECT|INSERT|UPDATE|DELETE|EXEC|DECLARE)\b.*\.\s*\$\w+/i,
+			// PHP variable assigned a SQL string starting with a keyword, then dot-concat
+			// e.g.  $q = "SELECT ... WHERE id = '" . $id . "'";
+			/\$\w+\s*=\s*["']\s*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|DECLARE)\b.*\.\s*\$\w+/i,
+			// PHP variable assigned a double-quoted SQL string with direct variable interpolation
+			// e.g.  $sql = "UPDATE t SET col = '$var' WHERE ...";
+			// \s* after the opening quote ensures the SQL keyword is at the string start.
+			/\$\w+\s*=\s*"\s*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|EXEC|DECLARE)\b[^"]*\$\w+/i,
 		],
 		fixDescription:
 			"Use PDO or MySQLi prepared statements with bound parameters. " +

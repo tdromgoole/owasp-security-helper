@@ -6,6 +6,8 @@ import {
 	phpRules,
 	jsRules,
 	phpInputValidationRules,
+	httpHeaderRules,
+	inputValidationRules,
 } from "./rules";
 import { SecurityFinding, SecurityRule, Severity } from "./types";
 
@@ -16,6 +18,8 @@ const ALL_RULES: SecurityRule[] = [
 	...phpRules,
 	...jsRules,
 	...phpInputValidationRules,
+	...httpHeaderRules,
+	...inputValidationRules,
 ];
 
 const SUPPORTED_LANGUAGES = new Set([
@@ -67,10 +71,11 @@ function getIgnoreJustification(
 	lineIdx: number,
 	ruleId: string,
 ): string | undefined {
-	if (lineIdx === 0) {
-		return undefined;
-	}
-	const prevLine = document.lineAt(lineIdx - 1).text.trim();
+	// For line-0 findings (document-level missing-header rules), check whether
+	// line 0 itself is an owasp-ignore comment so the finding can be suppressed
+	// by placing the comment at the very top of the file.
+	const checkIdx = lineIdx === 0 ? 0 : lineIdx - 1;
+	const prevLine = document.lineAt(checkIdx).text.trim();
 	const m = prevLine.match(
 		/^(?:\/\/|#)\s*owasp-ignore:\s*([A-Z0-9_-]+)\s*(?:--\s*(.*))?$/i,
 	);
@@ -109,14 +114,15 @@ export function scanDocument(document: vscode.TextDocument): SecurityFinding[] {
 		}
 
 		for (let lineIdx = 0; lineIdx < lineCount; lineIdx++) {
-			const lineText = document.lineAt(lineIdx).text;
+			const rawLine = document.lineAt(lineIdx).text;
 
-			// Skip lines that are too long to come from hand-written code.
+			// Truncate lines that are too long to come from hand-written code.
 			// Regex patterns with .* have O(n²) backtracking on long lines and
 			// will freeze the extension host (e.g. inlined data URIs, minified blobs).
-			if (lineText.length > 2000) {
-				continue;
-			}
+			// Truncating (rather than skipping) preserves partial coverage of
+			// minified files included by the Full Scan.
+			const lineText =
+				rawLine.length > 2000 ? rawLine.slice(0, 2000) : rawLine;
 
 			for (const pattern of rule.patterns) {
 				// Reset lastIndex for global regexes
@@ -142,6 +148,43 @@ export function scanDocument(document: vscode.TextDocument): SecurityFinding[] {
 					break; // one finding per rule per line is enough
 				}
 			}
+		}
+	}
+
+	// ── Document-level checks (e.g. missing required security headers) ─────────
+	// These fire when a required pattern is absent from the full document text.
+	// Findings are placed at line 0 and can be suppressed with an owasp-ignore
+	// comment on the first line of the file.
+	const fullText = document.getText();
+	const fileBaseName = filePath.split(/[/\\]/).pop() ?? "";
+	for (const rule of ALL_RULES) {
+		if (!rule.documentMustMatch) {
+			continue;
+		}
+		if (ignoredRules.includes(rule.id)) {
+			continue;
+		}
+		if (!meetsThreshold(rule.severity, severityThreshold)) {
+			continue;
+		}
+		if (rule.languages.length > 0 && !rule.languages.includes(langId)) {
+			continue;
+		}
+		if (rule.fileNamePattern && !rule.fileNamePattern.test(fileBaseName)) {
+			continue;
+		}
+		rule.documentMustMatch.lastIndex = 0;
+		if (!rule.documentMustMatch.test(fullText)) {
+			const justification = getIgnoreJustification(document, 0, rule.id);
+			findings.push({
+				rule,
+				line: 0,
+				startChar: 0,
+				endChar: 0,
+				matchedText: "(header not found in this file)",
+				filePath,
+				justification,
+			});
 		}
 	}
 

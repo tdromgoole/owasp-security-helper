@@ -1,3 +1,6 @@
-out/
-node_modules/
-*.vsix
+# Exclude everything by default, then carve out only what the extension needs
+**
+!out/extension.js
+!package.json
+!LICENSE
+!README.md

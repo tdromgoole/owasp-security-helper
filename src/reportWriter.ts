@@ -275,12 +275,11 @@ function buildReportHtml(
 	</div>
 	<div class="tab-content active" id="tab-severity">
 		${severityContent}
-		${mitigatedSection}
 	</div>
 	<div class="tab-content" id="tab-file">
 		${fileContent}
-		${mitigatedSection}
 	</div>
+	${mitigatedSection}
 	<script>
 		function showTab(id, btn) {
 			document.querySelectorAll('.tab-content').forEach(function(el) {

@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { randomFillSync } from "crypto";
 import { SecurityFinding, Severity } from "./types";
+import { DependencyResult, versionBumpType } from "./dependencyScanner";
 
 const SEVERITY_ICON: Record<Severity, string> = {
 	critical: "🔴",
@@ -25,6 +26,7 @@ function buildHtml(
 	workspaceRoot: string,
 	scannedCount?: number,
 	skippedCount?: number,
+	depResults?: DependencyResult[],
 ): string {
 	const critical = findings.filter((f) => f.rule.severity === "critical");
 	const warning = findings.filter((f) => f.rule.severity === "warning");
@@ -181,6 +183,107 @@ function buildHtml(
         </div>`;
 	}
 
+	function buildDepContent(results: DependencyResult[]): string {
+		const SEV_ORDER: Record<string, number> = {
+			critical: 0,
+			high: 1,
+			medium: 2,
+			low: 3,
+			unknown: 4,
+		};
+		const sevScore = (v: { severity: string }): number =>
+			SEV_ORDER[v.severity] ?? 4;
+		const sevColor = (s: string): string => {
+			if (s === "critical") {
+				return "#e74c3c";
+			}
+			if (s === "high") {
+				return "#c0392b";
+			}
+			if (s === "medium") {
+				return "#e67e22";
+			}
+			if (s === "low") {
+				return "#f39c12";
+			}
+			return "#888";
+		};
+		const vulnerable = [
+			...results.filter((r) => r.vulnerabilities.length > 0),
+		].sort(
+			(a, b) =>
+				Math.min(...a.vulnerabilities.map(sevScore)) -
+				Math.min(...b.vulnerabilities.map(sevScore)),
+		);
+		const bumpOrder = ["major", "minor", "patch"];
+		const outdated = [
+			...results.filter((r) => r.isOutdated && r.latestVersion !== null),
+		]
+			.filter(
+				(r) =>
+					versionBumpType(r.resolvedVersion, r.latestVersion!) !==
+					"none",
+			)
+			.sort(
+				(a, b) =>
+					bumpOrder.indexOf(
+						versionBumpType(a.resolvedVersion, a.latestVersion!),
+					) -
+					bumpOrder.indexOf(
+						versionBumpType(b.resolvedVersion, b.latestVersion!),
+					),
+			);
+		let html = "";
+		if (vulnerable.length > 0) {
+			html += `<h2>🚨 Vulnerable Packages <span class="count">(${vulnerable.length})</span></h2>`;
+			for (const r of vulnerable) {
+				const src = r.sourceFile
+					.replace(/\\/g, "/")
+					.split("/")
+					.slice(-2)
+					.join("/");
+				html += `<div class="dep-card dep-vuln">`;
+				html += `<div class="dep-header"><span class="dep-name">${escapeHtml(r.name)}</span>`;
+				html += `<span class="dep-ver dep-ver-current">${escapeHtml(r.resolvedVersion)}</span>`;
+				html += `<span class="dep-eco">${escapeHtml(r.ecosystem.toUpperCase())}</span>`;
+				html += `<span class="dep-src">${escapeHtml(src)}</span></div>`;
+				for (const v of [...r.vulnerabilities].sort(
+					(a, b) => sevScore(a) - sevScore(b),
+				)) {
+					html += `<div class="cve-row">`;
+					html += `<span class="cve-sev" style="background:${sevColor(v.severity)}22;color:${sevColor(v.severity)}">${escapeHtml(v.severity.toUpperCase())}</span>`;
+					html += `<a href="${escapeHtml(v.url)}" target="_blank">${escapeHtml(v.id)} ↗</a>`;
+					html += `<span class="cve-sum">${escapeHtml(v.summary)}</span></div>`;
+				}
+				html += `</div>`;
+			}
+		} else {
+			html += `<h2>🚨 Vulnerable Packages <span class="count">(0)</span></h2><div class="dep-ok">✅ No known vulnerabilities found in scanned dependencies.</div>`;
+		}
+		if (outdated.length > 0) {
+			html += `<h2>📦 Outdated Packages <span class="count">(${outdated.length})</span></h2>`;
+			for (const r of outdated) {
+				const bump = versionBumpType(
+					r.resolvedVersion,
+					r.latestVersion!,
+				);
+				const src = r.sourceFile
+					.replace(/\\/g, "/")
+					.split("/")
+					.slice(-2)
+					.join("/");
+				html += `<div class="dep-card dep-outdated">`;
+				html += `<div class="dep-header"><span class="dep-name">${escapeHtml(r.name)}</span>`;
+				html += `<span class="bump-badge bump-${bump}">${bump.toUpperCase()}</span>`;
+				html += `<span class="dep-ver">${escapeHtml(r.resolvedVersion)} → <strong>${escapeHtml(r.latestVersion!)}</strong></span>`;
+				html += `<span class="dep-eco">${escapeHtml(r.ecosystem.toUpperCase())}</span>`;
+				html += `<span class="dep-src">${escapeHtml(src)}</span></div>`;
+				html += `</div>`;
+			}
+		}
+		return html;
+	}
+
 	const activeCritical = activeFindings.filter(
 		(f) => f.rule.severity === "critical",
 	);
@@ -200,7 +303,7 @@ function buildHtml(
 			: "";
 
 	const severityContent =
-		(activeFindings.length === 0
+		activeFindings.length === 0
 			? `<div class="no-findings" style="text-align:left;padding:12px 0">✅ No active issues.</div>`
 			: buildSeveritySection(
 					"🔴 Critical Issues",
@@ -208,16 +311,14 @@ function buildHtml(
 					"critical",
 				) +
 				buildSeveritySection("🟡 Warnings", activeWarning, "warning") +
-				buildSeveritySection("🔵 Informational", activeInfo, "info")) +
-		buildMitigatedSection(mitigatedFindings);
+				buildSeveritySection("🔵 Informational", activeInfo, "info");
 
 	const fileContent =
-		(activeFindings.length === 0
+		activeFindings.length === 0
 			? `<div class="no-findings" style="text-align:left;padding:12px 0">✅ No active issues.</div>`
 			: sortedFiles
 					.map(([fp, items], i) => buildFileSection(fp, items, i))
-					.join("")) + buildMitigatedSection(mitigatedFindings);
-
+					.join("");
 	return /* html */ `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -311,6 +412,38 @@ function buildHtml(
     .filter-chip { cursor: pointer; user-select: none; }
     .filter-chip.filter-active { outline: 2px solid currentColor; outline-offset: 2px; }
     .filter-chip.filter-dim { opacity: 0.4; }
+    /* Search */
+    .search-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .search-input { flex: 1; max-width: 400px; padding: 5px 10px; border-radius: 4px;
+                    border: 1px solid var(--vscode-input-border); background: var(--vscode-input-background);
+                    color: var(--vscode-input-foreground); font-family: var(--vscode-font-family);
+                    font-size: 0.9em; outline: none; }
+    .search-input:focus { border-color: var(--vscode-focusBorder); }
+    .search-clear { background: none; border: none; cursor: pointer; padding: 4px 8px;
+                    color: var(--vscode-descriptionForeground); font-size: 0.9em; border-radius: 4px; }
+    .search-clear:hover { background: var(--vscode-list-hoverBackground); color: var(--vscode-foreground); }
+    .search-count { font-size: 0.82em; color: var(--vscode-descriptionForeground); }
+    /* Dependency cards */
+    .dep-card { border: 1px solid var(--vscode-panel-border); border-radius: 6px;
+                padding: 10px 12px; margin-bottom: 10px; }
+    .dep-vuln  { border-left: 4px solid #e74c3c; }
+    .dep-outdated { border-left: 4px solid #e67e22; }
+    .dep-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+    .dep-name { font-family: monospace; font-weight: 700; font-size: 0.95em; }
+    .dep-ver { font-family: monospace; font-size: 0.85em; color: var(--vscode-descriptionForeground); }
+    .dep-ver-current { color: #e74c3c; }
+    .dep-eco { font-size: 0.75em; padding: 1px 6px; border-radius: 4px;
+               background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); }
+    .dep-src { font-size: 0.8em; color: var(--vscode-descriptionForeground); font-family: monospace; margin-left: auto; }
+    .cve-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; font-size: 0.88em; }
+    .cve-sev { padding: 1px 7px; border-radius: 4px; font-size: 0.8em; font-weight: 700; flex-shrink: 0; }
+    .cve-sum { color: var(--vscode-descriptionForeground); flex: 1; }
+    .bump-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.78em; font-weight: 700; }
+    .bump-major { background: #c0392b33; color: #e74c3c; }
+    .bump-minor { background: #e67e2233; color: #e67e22; }
+    .bump-patch { background: #2980b933; color: #3498db; }
+    .dep-ok { padding: 10px 0; color: #27ae60; }
+    .chip-dep-vuln { background: #c0392b33; color: #e74c3c; }
   </style>
 </head>
 <body>
@@ -322,10 +455,17 @@ function buildHtml(
     <span class="summary-chip chip-info filter-chip" data-filter="info">🔵 Info: ${activeInfo.length}</span>
     <span class="summary-chip" style="background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)">📁 Files: ${byFile.size}</span>
     ${mitigatedFindings.length > 0 ? `<span class="summary-chip chip-mitigated filter-chip" data-filter="mitigated">✅ Mitigated: ${mitigatedFindings.length}</span>` : ""}
+    ${depResults && depResults.filter((r) => r.vulnerabilities.length > 0).length > 0 ? `<span class="summary-chip chip-dep-vuln">🚨 Dep Vulns: ${depResults.filter((r) => r.vulnerabilities.length > 0).length}</span>` : ""}
   </div>
   <div class="tabs">
     <button class="tab-btn active" data-tab="severity">By Severity</button>
     <button class="tab-btn" data-tab="file">By File</button>
+    ${depResults && depResults.length > 0 ? '<button class="tab-btn" data-tab="deps">📦 Dependencies</button>' : ""}
+  </div>
+  <div class="search-bar">
+    <input class="search-input" id="search-input" type="text" placeholder="Search by file name or rule ID…" autocomplete="off" spellcheck="false">
+    <button class="search-clear" id="search-clear" title="Clear search">✕</button>
+    <span class="search-count" id="search-count"></span>
   </div>
   <div class="tab-content" id="tab-severity">
     ${severityContent}
@@ -333,10 +473,23 @@ function buildHtml(
   <div class="tab-content" id="tab-file" style="display:none">
     ${fileContent}
   </div>
+  ${buildMitigatedSection(mitigatedFindings)}
+  ${depResults && depResults.length > 0 ? `<div class="tab-content" id="tab-deps" style="display:none">${buildDepContent(depResults)}</div>` : ""}
   <script nonce="${nonce}">
     var vscode = acquireVsCodeApi();
     var _f = ${findingsMeta};
     var _filters = new Set();
+    var _searchTerm = '';
+
+    function matchesSearch(card) {
+      if (!_searchTerm) { return true; }
+      var idx = card.querySelector('[data-jump]');
+      if (!idx) { return true; }
+      var i = parseInt(idx.getAttribute('data-jump'), 10);
+      var file = (_f[i] && _f[i].file ? _f[i].file : '').toLowerCase();
+      var rule = (_f[i] && _f[i].ruleId ? _f[i].ruleId : '').toLowerCase();
+      return file.indexOf(_searchTerm) !== -1 || rule.indexOf(_searchTerm) !== -1;
+    }
 
     function applyFilters() {
       var hasFilter = _filters.size > 0;
@@ -345,23 +498,48 @@ function buildHtml(
         chip.classList.toggle('filter-active', hasFilter && _filters.has(f));
         chip.classList.toggle('filter-dim', hasFilter && !_filters.has(f));
       });
-      // By Severity tab: show/hide severity groups
+      var totalVisible = 0;
+      // By Severity tab: show/hide individual cards; hide empty severity groups
       document.querySelectorAll('[data-severity-group]').forEach(function(grp) {
         var sev = grp.getAttribute('data-severity-group');
-        grp.style.display = (!hasFilter || _filters.has(sev)) ? '' : 'none';
+        var sevVisible = 0;
+        grp.querySelectorAll('.finding').forEach(function(card) {
+          var cardSev = card.getAttribute('data-severity');
+          var show = (!hasFilter || _filters.has(cardSev)) && matchesSearch(card);
+          card.style.display = show ? '' : 'none';
+          if (show) { sevVisible++; totalVisible++; }
+        });
+        grp.style.display = (!hasFilter || _filters.has(sev)) && sevVisible > 0 ? '' : 'none';
       });
       // By File tab: show/hide individual cards; hide empty file groups
       document.querySelectorAll('.file-group').forEach(function(group) {
         var visCount = 0;
         group.querySelectorAll('.finding').forEach(function(card) {
           var sev = card.getAttribute('data-severity');
-          var show = !hasFilter || _filters.has(sev);
+          var show = (!hasFilter || _filters.has(sev)) && matchesSearch(card);
           card.style.display = show ? '' : 'none';
           if (show) { visCount++; }
         });
         group.style.display = visCount > 0 ? '' : 'none';
       });
+      var countEl = document.getElementById('search-count');
+      if (countEl) {
+        countEl.textContent = _searchTerm ? totalVisible + ' match' + (totalVisible !== 1 ? 'es' : '') : '';
+      }
     }
+
+    var searchInput = document.getElementById('search-input');
+    var searchClear = document.getElementById('search-clear');
+    searchInput.addEventListener('input', function() {
+      _searchTerm = searchInput.value.trim().toLowerCase();
+      applyFilters();
+    });
+    searchClear.addEventListener('click', function() {
+      searchInput.value = '';
+      _searchTerm = '';
+      applyFilters();
+      searchInput.focus();
+    });
 
     document.addEventListener('click', function(e) {
       var target = e.target;
@@ -491,6 +669,7 @@ export class SecurityReportPanel {
 	private findings: SecurityFinding[] = [];
 	private scannedCount: number | undefined;
 	private skippedCount: number | undefined;
+	private depResults: DependencyResult[] | undefined;
 	private disposables: vscode.Disposable[] = [];
 
 	private constructor(extensionUri: vscode.Uri) {
@@ -606,6 +785,7 @@ export class SecurityReportPanel {
 		findings: SecurityFinding[],
 		scannedCount?: number,
 		skippedCount?: number,
+		depResults?: DependencyResult[],
 	): void {
 		const col =
 			vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
@@ -614,6 +794,7 @@ export class SecurityReportPanel {
 				findings,
 				scannedCount,
 				skippedCount,
+				depResults,
 			);
 			// Reveal in its current column without forcing a column change
 			SecurityReportPanel.current.panel.reveal(undefined, false);
@@ -623,7 +804,15 @@ export class SecurityReportPanel {
 				findings,
 				scannedCount,
 				skippedCount,
+				depResults,
 			);
+		}
+	}
+
+	public static updateDependencies(depResults: DependencyResult[]): void {
+		if (SecurityReportPanel.current) {
+			SecurityReportPanel.current.depResults = depResults;
+			SecurityReportPanel.current.render();
 		}
 	}
 
@@ -631,10 +820,12 @@ export class SecurityReportPanel {
 		findings: SecurityFinding[],
 		scannedCount?: number,
 		skippedCount?: number,
+		depResults?: DependencyResult[],
 	): void {
 		this.findings = findings;
 		this.scannedCount = scannedCount;
 		this.skippedCount = skippedCount;
+		this.depResults = depResults;
 		this.render();
 	}
 
@@ -649,6 +840,7 @@ export class SecurityReportPanel {
 			workspaceRoot,
 			this.scannedCount,
 			this.skippedCount,
+			this.depResults,
 		);
 	}
 

@@ -69,6 +69,25 @@ export class SecurityCodeActionProvider implements vscode.CodeActionProvider {
 				}
 			}
 
+			// ── Quick Fix: show fix guidance if fixDescription is available ─────────
+			if (rule.fixDescription) {
+				const guidanceLabel =
+					rule.fixDescription.length > 60
+						? `💡 How to fix: ${rule.fixDescription.slice(0, 57)}…`
+						: `💡 How to fix: ${rule.fixDescription}`;
+				const guidance = new vscode.CodeAction(
+					guidanceLabel,
+					vscode.CodeActionKind.QuickFix,
+				);
+				guidance.command = {
+					command: "owaspHelper.showFixGuidance",
+					title: "Show Fix Guidance",
+					arguments: [rule.fixDescription, rule.reference],
+				};
+				guidance.diagnostics = [diag];
+				actions.push(guidance);
+			}
+
 			// ── Quick Fix: suppress this rule for the line (comment) ─────────────
 			const suppress = new vscode.CodeAction(
 				`Suppress: Add owaspHelper-disable-next-line ${ruleId}`,
