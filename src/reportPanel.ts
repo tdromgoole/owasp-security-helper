@@ -27,6 +27,7 @@ function buildHtml(
 	scannedCount?: number,
 	skippedCount?: number,
 	depResults?: DependencyResult[],
+	cancelled?: boolean,
 ): string {
 	const critical = findings.filter((f) => f.rule.severity === "critical");
 	const warning = findings.filter((f) => f.rule.severity === "warning");
@@ -125,19 +126,10 @@ function buildHtml(
 	}
 
 	function buildMitigatedSection(items: SecurityFinding[]): string {
-		if (items.length === 0) {
-			return "";
-		}
 		const rows = items
 			.map((f) => buildFindingCard(f, findings.indexOf(f), true))
 			.join("");
-		return `
-		<div class="mitigated-section" data-severity-group="mitigated">
-		  <h2 class="mitigated-title" data-toggle-section="mitigated-body">
-		    <span class="chevron">▼</span> ✅ Mitigated <span class="count">(${items.length})</span>
-		  </h2>
-		  <div id="mitigated-body">${rows}</div>
-		</div>`;
+		return `<div class="mitigated-section" data-severity-group="mitigated">${rows}</div>`;
 	}
 
 	function buildFileSection(
@@ -299,8 +291,10 @@ function buildHtml(
 
 	const scanSummary =
 		scannedCount !== undefined
-			? `<div class="scan-info">Scanned <strong>${scannedCount}</strong> file(s)${skippedCount ? ` &mdash; <span class="skip-warn">${skippedCount} skipped (unreadable)</span>` : ""}.</div>`
-			: "";
+			? `<div class="scan-info">${cancelled ? '<span class="cancel-banner">⚠️ Scan was cancelled — results below are partial.</span> ' : ""}Scanned <strong>${scannedCount}</strong> file(s)${skippedCount ? ` &mdash; <span class="skip-warn">${skippedCount} skipped (unreadable)</span>` : ""}.</div>`
+			: cancelled
+				? '<div class="scan-info"><span class="cancel-banner">⚠️ Scan was cancelled — results below are partial.</span></div>'
+				: "";
 
 	const severityContent =
 		activeFindings.length === 0
@@ -378,6 +372,7 @@ function buildHtml(
     .no-findings { padding: 20px; text-align: center; color: #27ae60; font-size: 1.1em; }
     .scan-info { font-size: 0.82em; color: var(--vscode-descriptionForeground); margin-bottom: 10px; }
     .skip-warn { color: #e67e22; }
+    .cancel-banner { color: #e74c3c; font-weight: 600; }
     /* File grouping */
     .file-group { border: 1px solid var(--vscode-panel-border); border-radius: 6px;
                   margin-bottom: 10px; overflow: hidden; }
@@ -460,6 +455,7 @@ function buildHtml(
   <div class="tabs">
     <button class="tab-btn active" data-tab="severity">By Severity</button>
     <button class="tab-btn" data-tab="file">By File</button>
+    ${mitigatedFindings.length > 0 ? '<button class="tab-btn" data-tab="mitigated">✅ Mitigated</button>' : ""}
     ${depResults && depResults.length > 0 ? '<button class="tab-btn" data-tab="deps">📦 Dependencies</button>' : ""}
   </div>
   <div class="search-bar">
@@ -473,7 +469,7 @@ function buildHtml(
   <div class="tab-content" id="tab-file" style="display:none">
     ${fileContent}
   </div>
-  ${buildMitigatedSection(mitigatedFindings)}
+  ${mitigatedFindings.length > 0 ? `<div class="tab-content" id="tab-mitigated" style="display:none">${buildMitigatedSection(mitigatedFindings)}</div>` : ""}
   ${depResults && depResults.length > 0 ? `<div class="tab-content" id="tab-deps" style="display:none">${buildDepContent(depResults)}</div>` : ""}
   <script nonce="${nonce}">
     var vscode = acquireVsCodeApi();
@@ -670,6 +666,7 @@ export class SecurityReportPanel {
 	private scannedCount: number | undefined;
 	private skippedCount: number | undefined;
 	private depResults: DependencyResult[] | undefined;
+	private cancelled: boolean = false;
 	private disposables: vscode.Disposable[] = [];
 
 	private constructor(extensionUri: vscode.Uri) {
@@ -785,16 +782,16 @@ export class SecurityReportPanel {
 		findings: SecurityFinding[],
 		scannedCount?: number,
 		skippedCount?: number,
+		cancelled?: boolean,
 		depResults?: DependencyResult[],
 	): void {
-		const col =
-			vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
 		if (SecurityReportPanel.current) {
 			SecurityReportPanel.current.update(
 				findings,
 				scannedCount,
 				skippedCount,
 				depResults,
+				cancelled,
 			);
 			// Reveal in its current column without forcing a column change
 			SecurityReportPanel.current.panel.reveal(undefined, false);
@@ -805,6 +802,7 @@ export class SecurityReportPanel {
 				scannedCount,
 				skippedCount,
 				depResults,
+				cancelled,
 			);
 		}
 	}
@@ -821,11 +819,13 @@ export class SecurityReportPanel {
 		scannedCount?: number,
 		skippedCount?: number,
 		depResults?: DependencyResult[],
+		cancelled?: boolean,
 	): void {
 		this.findings = findings;
 		this.scannedCount = scannedCount;
 		this.skippedCount = skippedCount;
 		this.depResults = depResults;
+		this.cancelled = cancelled ?? false;
 		this.render();
 	}
 
@@ -841,6 +841,7 @@ export class SecurityReportPanel {
 			this.scannedCount,
 			this.skippedCount,
 			this.depResults,
+			this.cancelled,
 		);
 	}
 

@@ -1,4 +1,4 @@
-import { SecurityRule } from "../types";
+﻿import { SecurityRule } from "../types";
 
 /**
  * Content Security Policy (CSP) analysis rules.
@@ -66,7 +66,7 @@ export const cspRules: SecurityRule[] = [
 			"Without default-src, unspecified resource types fall back to allowing all origins.",
 		severity: "warning",
 		languages: [],
-		patterns: [/Content-Security-Policy[^'";\n]*(?!default-src)/i],
+		patterns: [/Content-Security-Policy(?![^;\n'"]*\bdefault-src\b)/i],
 		fixDescription:
 			"Add 'default-src' as a catch-all fallback, e.g. default-src 'none'.",
 		reference:
@@ -81,7 +81,7 @@ export const cspRules: SecurityRule[] = [
 			"Without object-src 'none', Flash and other plugin content can be loaded and can bypass CSP entirely.",
 		severity: "warning",
 		languages: [],
-		patterns: [/Content-Security-Policy[^'";\n]*(?!object-src)/i],
+		patterns: [/Content-Security-Policy(?![^;\n'"]*\bobject-src\b)/i],
 		fixDescription:
 			"Explicitly set object-src 'none' to block plugin-based content.",
 		reference:
@@ -113,7 +113,7 @@ export const cspRules: SecurityRule[] = [
 			"Without frame-ancestors, the page can be framed by any origin, enabling clickjacking attacks.",
 		severity: "warning",
 		languages: [],
-		patterns: [/Content-Security-Policy[^'";\n]*(?!frame-ancestors)/i],
+		patterns: [/Content-Security-Policy(?![^;\n'"]*\bframe-ancestors\b)/i],
 		fixDescription:
 			"Add frame-ancestors 'none' or frame-ancestors 'self' to prevent clickjacking.",
 		reference:
@@ -129,7 +129,7 @@ export const cspRules: SecurityRule[] = [
 		severity: "info",
 		languages: [],
 		patterns: [
-			/Content-Security-Policy(?!-Report-Only)[^'";\n]*(?!report-(?:uri|to))/i,
+			/Content-Security-Policy(?!-Report-Only)(?![^;\n'"]*\breport-(?:uri|to)\b)/i,
 		],
 		fixDescription:
 			"Add report-to or report-uri to receive violation reports.",

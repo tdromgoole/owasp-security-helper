@@ -165,11 +165,12 @@ async function withConcurrency<T>(
 
 // ── Manifest parsers ──────────────────────────────────────────────────────────
 
-function parsePackageJson(
+/** Read package.json and return declared dependency names + version ranges. */
+async function parsePackageJson(
 	filePath: string,
-): Array<{ name: string; version: string }> {
+): Promise<Array<{ name: string; version: string }>> {
 	try {
-		const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
+		const raw = JSON.parse(await fs.promises.readFile(filePath, "utf8"));
 		const deps: Array<{ name: string; version: string }> = [];
 		for (const section of [
 			"dependencies",
@@ -199,10 +200,12 @@ function parsePackageJson(
 }
 
 /** Read package-lock.json (v1/v2/v3) and return a map of resolved versions. */
-function parsePackageLock(lockPath: string): Map<string, string> {
+async function parsePackageLock(
+	lockPath: string,
+): Promise<Map<string, string>> {
 	const resolved = new Map<string, string>();
 	try {
-		const raw = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+		const raw = JSON.parse(await fs.promises.readFile(lockPath, "utf8"));
 		if (raw.packages) {
 			// v2/v3 format
 			for (const [key, val] of Object.entries<{
@@ -231,12 +234,14 @@ function parsePackageLock(lockPath: string): Map<string, string> {
 	return resolved;
 }
 
-function parseRequirementsTxt(
+async function parseRequirementsTxt(
 	filePath: string,
-): Array<{ name: string; version: string }> {
+): Promise<Array<{ name: string; version: string }>> {
 	const deps: Array<{ name: string; version: string }> = [];
 	try {
-		const lines = fs.readFileSync(filePath, "utf8").split(/\r?\n/);
+		const lines = (await fs.promises.readFile(filePath, "utf8")).split(
+			/\r?\n/,
+		);
 		for (const line of lines) {
 			const trimmed = line.trim();
 			if (
@@ -260,11 +265,11 @@ function parseRequirementsTxt(
 	return deps;
 }
 
-function parseComposerJson(
+async function parseComposerJson(
 	filePath: string,
-): Array<{ name: string; version: string }> {
+): Promise<Array<{ name: string; version: string }>> {
 	try {
-		const raw = JSON.parse(fs.readFileSync(filePath, "utf8"));
+		const raw = JSON.parse(await fs.promises.readFile(filePath, "utf8"));
 		const deps: Array<{ name: string; version: string }> = [];
 		for (const section of ["require", "require-dev"]) {
 			const obj = raw[section];
@@ -481,10 +486,10 @@ export async function scanDependencies(
 			if (!lockCache.has(dir)) {
 				const lockPath = path.join(dir, "package-lock.json");
 				if (fs.existsSync(lockPath)) {
-					lockCache.set(dir, parsePackageLock(lockPath));
+					lockCache.set(dir, await parsePackageLock(lockPath));
 				}
 			}
-			for (const dep of parsePackageJson(filePath)) {
+			for (const dep of await parsePackageJson(filePath)) {
 				const locked = lockCache.get(dir)?.get(dep.name);
 				const resolved = locked ?? stripRange(dep.version);
 				if (resolved) {
@@ -497,7 +502,7 @@ export async function scanDependencies(
 				}
 			}
 		} else if (base === "requirements.txt") {
-			for (const dep of parseRequirementsTxt(filePath)) {
+			for (const dep of await parseRequirementsTxt(filePath)) {
 				rawDeps.push({
 					...dep,
 					resolvedVersion: dep.version,
@@ -506,7 +511,7 @@ export async function scanDependencies(
 				});
 			}
 		} else if (base === "composer.json") {
-			for (const dep of parseComposerJson(filePath)) {
+			for (const dep of await parseComposerJson(filePath)) {
 				const resolved = stripRange(dep.version);
 				if (resolved) {
 					rawDeps.push({

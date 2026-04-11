@@ -346,9 +346,12 @@ export class DependencyPanel {
 		instance.panel.webview.onDidReceiveMessage(
 			(msg: { command: string; file?: string }) => {
 				if (msg.command === "openFile" && msg.file) {
-					vscode.workspace
-						.openTextDocument(msg.file)
-						.then((doc) => vscode.window.showTextDocument(doc));
+					vscode.workspace.openTextDocument(msg.file).then(
+						(doc) => vscode.window.showTextDocument(doc),
+						() => {
+							/* file may have been deleted or moved */
+						},
+					);
 				}
 			},
 			null,

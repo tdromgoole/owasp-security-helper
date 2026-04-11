@@ -3,7 +3,11 @@
 	"displayName": "OWASP Security Helper",
 	"description": "Detects insecure coding practices with OWASP Top 10 rules, Content Security Policy, HTTP security headers, PHP/JS/TS/Python input validation, and file upload patterns — inline diagnostics, quick fixes, and a security report panel.",
 	"version": "0.3.0",
-	"publisher": "your-publisher-id",
+	"publisher": "ThomasDromgoole",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/tdromgoole/owasp-security-helper"
+	},
 	"engines": {
 		"vscode": "^1.85.0"
 	},
@@ -33,7 +37,9 @@
 		"onCommand:owaspHelper.scanWorkspace",
 		"onCommand:owaspHelper.scanWorkspaceFull",
 		"onCommand:owaspHelper.showReport",
-		"onCommand:owaspHelper.openSavedReport"
+		"onCommand:owaspHelper.openSavedReport",
+		"onCommand:owaspHelper.checkForUpdates",
+		"onCommand:owaspHelper.showRulesStatus"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -182,7 +188,7 @@
 				},
 				"owaspHelper.rulesManifestUrl": {
 					"type": "string",
-					"default": "https://raw.githubusercontent.com/your-org/owasp-security-helper/main/rules-manifest.json",
+					"default": "https://raw.githubusercontent.com/tdromgoole/owasp-security-helper/main/rules-manifest.json",
 					"description": "URL of the remote rules manifest JSON used to check for rule updates."
 				}
 			}

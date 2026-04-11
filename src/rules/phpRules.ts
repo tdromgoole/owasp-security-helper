@@ -37,7 +37,7 @@ export const phpRules: SecurityRule[] = [
 			"vulnerable to XSS (e.g. value='$input').",
 		severity: "warning",
 		languages: ["php"],
-		patterns: [/htmlspecialchars\s*\([^)]*\)(?!\s*,\s*ENT_QUOTES)/i],
+		patterns: [/htmlspecialchars\s*\((?![^)]*ENT_QUOTES)[^)]*\)/i],
 		fixDescription:
 			"Use htmlspecialchars($val, ENT_QUOTES, 'UTF-8') to escape both single and double quotes.",
 		reference:
@@ -132,7 +132,8 @@ export const phpRules: SecurityRule[] = [
 		languages: ["php"],
 		patterns: [
 			/\bassert\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE)/i,
-			/\bassert\s*\(\s*\$\w+/i,
+			// Only flag assert() where the argument is a string (evaluable) or concatenation
+			/\bassert\s*\(\s*(?:['"]|\$\w+\s*\.)/i,
 		],
 		fixDescription:
 			"Never pass user input to assert(). Use assert() only with static expressions for development checks.",

@@ -15,6 +15,8 @@ const SUPPORTED_SELECTOR: vscode.DocumentSelector = [
 	{ language: "typescriptreact" },
 	{ language: "python" },
 	{ language: "php" },
+	{ language: "apacheconf" },
+	{ language: "xml" },
 ];
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -25,14 +27,75 @@ export function activate(context: vscode.ExtensionContext): void {
 	/** In-memory cache of all findings by file path, used to build the report */
 	const findingsCache = new Map<string, SecurityFinding[]>();
 
+	/**
+	 * Stores the findings/stats from the most recent workspace scan so that
+	 * the "Show Report" command always re-displays that consistent snapshot
+	 * rather than an ad-hoc mix of per-file scan results.
+	 */
+	let lastScanSnapshot:
+		| {
+				findings: SecurityFinding[];
+				scannedCount: number;
+				skippedCount: number;
+				cancelled: boolean;
+		  }
+		| undefined;
+
+	/**
+	 * Returns true if the file path should be excluded from per-file scanning.
+	 * Mirrors the fastScanExclude logic used by the workspace scan so that the
+	 * Problems panel and the report panel stay in sync.
+	 */
+	function isExcludedFromPerFileScan(filePath: string): boolean {
+		const normalized = filePath.replace(/\\/g, "/");
+
+		// Always skip compiled output — the bundled extension.js contains all
+		// rule regex strings literally and matches hundreds of rules on its own.
+		const hardExcludes = [
+			"/node_modules/",
+			"/out/",
+			"/dist/",
+			"/.venv/",
+			".min.js",
+			".min.jsx",
+		];
+		if (hardExcludes.some((p) => normalized.includes(p))) {
+			return true;
+		}
+
+		// Also apply user-configured fastScanExclude patterns.
+		const config = vscode.workspace.getConfiguration("owaspHelper");
+		const excludePatterns = config.get<string[]>("fastScanExclude", []);
+		for (const pattern of excludePatterns) {
+			// Handle the two common glob forms:
+			//   **/some/dir/**  → substring check for "some/dir/"
+			//   **/*.ext        → suffix check for ".ext"
+			if (pattern.startsWith("**/") && pattern.includes("*.", 3)) {
+				// Extension pattern: **/*.min.js → suffix ".min.js"
+				const suffix = pattern.slice(pattern.lastIndexOf("*.") + 1);
+				if (suffix && normalized.endsWith(suffix)) {
+					return true;
+				}
+			} else {
+				// Directory pattern: strip leading **/ and trailing /**
+				const inner = pattern
+					.replace(/^\*\*\//, "")
+					.replace(/\/\*\*$/, "");
+				if (inner && normalized.includes("/" + inner + "/")) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	function scanAndPublish(document: vscode.TextDocument): void {
+		if (isExcludedFromPerFileScan(document.uri.fsPath)) {
+			return;
+		}
 		const findings = scanDocument(document);
 		findingsCache.set(document.uri.fsPath, findings);
 		publishDiagnostics(document, findings, diagnosticCollection);
-	}
-
-	function allFindings(): SecurityFinding[] {
-		return Array.from(findingsCache.values()).flat();
 	}
 
 	// ── Scan on open ─────────────────────────────────────────────────────────
@@ -48,14 +111,20 @@ export function activate(context: vscode.ExtensionContext): void {
 		}),
 	);
 
-	// ── Scan on change (debounced 800 ms) ────────────────────────────────────
-	let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+	// ── Scan on change (debounced 800 ms per document) ───────────────────────────
+	// Use a per-document timer so edits in file B don't cancel the pending
+	// scan for file A when both are being edited simultaneously.
+	const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeTextDocument((event) => {
-			clearTimeout(debounceTimer);
-			debounceTimer = setTimeout(
-				() => scanAndPublish(event.document),
-				800,
+			const key = event.document.uri.fsPath;
+			clearTimeout(debounceTimers.get(key));
+			debounceTimers.set(
+				key,
+				setTimeout(() => {
+					debounceTimers.delete(key);
+					scanAndPublish(event.document);
+				}, 800),
 			);
 		}),
 	);
@@ -81,7 +150,20 @@ export function activate(context: vscode.ExtensionContext): void {
 	// ── Command: Show Report ─────────────────────────────────────────────────
 	context.subscriptions.push(
 		vscode.commands.registerCommand("owaspHelper.showReport", () => {
-			SecurityReportPanel.show(context.extensionUri, allFindings());
+			if (lastScanSnapshot) {
+				SecurityReportPanel.show(
+					context.extensionUri,
+					lastScanSnapshot.findings,
+					lastScanSnapshot.scannedCount,
+					lastScanSnapshot.skippedCount,
+				);
+			} else {
+				// No workspace scan has been run yet — show per-file findings
+				SecurityReportPanel.show(
+					context.extensionUri,
+					Array.from(findingsCache.values()).flat(),
+				);
+			}
 		}),
 	);
 
@@ -178,6 +260,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			const progressTitle = skipLargeFiles
 				? "OWASP Security Helper: Fast scanning workspace…"
 				: "OWASP Security Helper: Full scanning workspace (including large files)…";
+			let scanWasCancelled = false;
 			await vscode.window.withProgress(
 				{
 					location: vscode.ProgressLocation.Notification,
@@ -206,6 +289,7 @@ export function activate(context: vscode.ExtensionContext): void {
 					let done = 0;
 					for (const fileUri of files) {
 						if (token.isCancellationRequested) {
+							scanWasCancelled = true;
 							break;
 						}
 						if (done % 10 === 0) {
@@ -258,18 +342,29 @@ export function activate(context: vscode.ExtensionContext): void {
 				},
 			);
 
+			// GAP-10: persist snapshot so showReport always reflects the last scan
+			// GAP-11c: store cancellation flag
+			lastScanSnapshot = {
+				findings: scanFindings,
+				scannedCount,
+				skippedCount,
+				cancelled: scanWasCancelled,
+			};
+
 			SecurityReportPanel.show(
 				context.extensionUri,
 				scanFindings,
 				scannedCount,
 				skippedCount,
+				scanWasCancelled,
 			);
 
 			const activeCount = scanFindings.filter(
 				(f) => !f.justification,
 			).length;
-			const summaryMsg =
-				activeCount === 0
+			const summaryMsg = scanWasCancelled
+				? `OWASP Helper: Scan cancelled — ${activeCount} issue(s) found so far in ${scannedCount} file(s) scanned.`
+				: activeCount === 0
 					? `OWASP Helper: Scan complete — no issues found in ${scannedCount} file(s). ✅`
 					: `OWASP Helper: Scan complete — ${activeCount} issue(s) found in ${scannedCount} file(s).`;
 

@@ -6,6 +6,8 @@ import {
 	phpRules,
 	jsRules,
 	phpInputValidationRules,
+	httpHeaderRules,
+	inputValidationRules,
 } from "./rules";
 import { SecurityRule } from "./types";
 
@@ -16,6 +18,8 @@ const ALL_RULES: SecurityRule[] = [
 	...phpRules,
 	...jsRules,
 	...phpInputValidationRules,
+	...httpHeaderRules,
+	...inputValidationRules,
 ];
 const RULE_MAP = new Map<string, SecurityRule>(ALL_RULES.map((r) => [r.id, r]));
 
@@ -47,7 +51,12 @@ export class SecurityCodeActionProvider implements vscode.CodeActionProvider {
 			}
 
 			// ── Quick Fix: apply fixReplacer if available ────────────────────────
-			if (rule.fixReplacer) {
+			// Skip code-level replacements for config file formats — a Node.js
+			// fixReplacer outputting e.g. process.env.SECRET_VALUE would corrupt XML.
+			const isConfigFile =
+				document.languageId === "xml" ||
+				document.languageId === "apacheconf";
+			if (rule.fixReplacer && !isConfigFile) {
 				const line = document.lineAt(diag.range.start.line);
 				const lineText = line.text;
 				const pattern = rule.patterns[0];
@@ -90,7 +99,7 @@ export class SecurityCodeActionProvider implements vscode.CodeActionProvider {
 
 			// ── Quick Fix: suppress this rule for the line (comment) ─────────────
 			const suppress = new vscode.CodeAction(
-				`Suppress: Add owaspHelper-disable-next-line ${ruleId}`,
+				`Suppress: Add owasp-ignore comment for ${ruleId}`,
 				vscode.CodeActionKind.QuickFix,
 			);
 			suppress.edit = new vscode.WorkspaceEdit();
@@ -130,10 +139,10 @@ export class SecurityCodeActionProvider implements vscode.CodeActionProvider {
 function buildSuppressComment(languageId: string, ruleId: string): string {
 	switch (languageId) {
 		case "python":
-			return `# owaspHelper-disable-next-line ${ruleId}`;
+			return `# owasp-ignore: ${ruleId} -- suppressed`;
 		case "php":
-			return `// owaspHelper-disable-next-line ${ruleId}`;
+			return `// owasp-ignore: ${ruleId} -- suppressed`;
 		default:
-			return `// owaspHelper-disable-next-line ${ruleId}`;
+			return `// owasp-ignore: ${ruleId} -- suppressed`;
 	}
 }

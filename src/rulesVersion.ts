@@ -9,10 +9,16 @@
 export const RULES_VERSION = "2026.04.1";
 
 /** Human-readable coverage summary shown in the report panel and notifications. */
-export const RULES_METADATA = {
+export const RULES_METADATA: {
+	readonly version: string;
+	readonly owaspCoverage: string;
+	readonly lastUpdated: string;
+	totalRules: number;
+	readonly changelogUrl: string;
+} = {
 	version: RULES_VERSION,
 	owaspCoverage: "OWASP Top 10 (2021) — A01 through A10",
 	lastUpdated: "2026-04-03",
-	totalRules: 0, // computed at runtime by updateChecker
-	changelogUrl: "https://github.com/your-org/owasp-security-helper/releases",
-} as const;
+	totalRules: 0,
+	changelogUrl: "https://github.com/tdromgoole/owasp-security-helper/releases",
+};

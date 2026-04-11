@@ -50,10 +50,7 @@ export const owaspRules: SecurityRule[] = [
 			"python",
 			"php",
 		],
-		patterns: [
-			/(?:createHash|md5|hashlib\.md5)\s*\(\s*['"]md5['"]\s*\)/i,
-			/md5\s*\(/i,
-		],
+		patterns: [/(?:createHash|hashlib\.md5)\s*\(\s*['"]md5['"]\s*\)/i],
 		fixDescription:
 			'Replace MD5 with SHA-256 (crypto.createHash("sha256")) or bcrypt/argon2 for passwords.',
 		reference: "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/",
@@ -319,7 +316,8 @@ export const owaspRules: SecurityRule[] = [
 			"php",
 		],
 		patterns: [
-			/res\.cookie\s*\([^)]*\)/,
+			// Fires when res.cookie() is called WITHOUT secure:true — avoids matching properly-configured cookies
+			/res\.cookie\s*\([^)]*\)(?![^)]*secure\s*:\s*true)/,
 			/setcookie\s*\([^)]*\)/i,
 			/response\.set_cookie\s*\([^)]*\)/i,
 		],

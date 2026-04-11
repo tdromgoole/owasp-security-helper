@@ -56,6 +56,10 @@ function meetsThreshold(ruleSeverity: Severity, threshold: string): boolean {
 	if (threshold === "all") {
 		return true;
 	}
+	if (!(threshold in SEVERITY_ORDER)) {
+		// Unknown config value — default to showing everything
+		return true;
+	}
 	return (
 		SEVERITY_ORDER[ruleSeverity] <= SEVERITY_ORDER[threshold as Severity]
 	);
@@ -97,13 +101,14 @@ export function scanDocument(document: vscode.TextDocument): SecurityFinding[] {
 	const config = vscode.workspace.getConfiguration("owaspHelper");
 	const severityThreshold: string = config.get("severity", "all");
 	const ignoredRules: string[] = config.get("ignoredRules", []);
+	const ignoredSet = new Set<string>(ignoredRules);
 
 	const findings: SecurityFinding[] = [];
 	const lineCount = document.lineCount;
 	const filePath = document.uri.fsPath;
 
 	for (const rule of ALL_RULES) {
-		if (ignoredRules.includes(rule.id)) {
+		if (ignoredSet.has(rule.id)) {
 			continue;
 		}
 		if (!meetsThreshold(rule.severity, severityThreshold)) {
@@ -161,7 +166,7 @@ export function scanDocument(document: vscode.TextDocument): SecurityFinding[] {
 		if (!rule.documentMustMatch) {
 			continue;
 		}
-		if (ignoredRules.includes(rule.id)) {
+		if (ignoredSet.has(rule.id)) {
 			continue;
 		}
 		if (!meetsThreshold(rule.severity, severityThreshold)) {
@@ -170,7 +175,14 @@ export function scanDocument(document: vscode.TextDocument): SecurityFinding[] {
 		if (rule.languages.length > 0 && !rule.languages.includes(langId)) {
 			continue;
 		}
-		if (rule.fileNamePattern && !rule.fileNamePattern.test(fileBaseName)) {
+		// fileNamePattern restricts rules to specific file names (e.g. web.config).
+		// Skip the check for apacheconf files so .htaccess / httpd.conf are not
+		// accidentally excluded by a pattern that was intended only for xml/IIS.
+		if (
+			rule.fileNamePattern &&
+			langId !== "apacheconf" &&
+			!rule.fileNamePattern.test(fileBaseName)
+		) {
 			continue;
 		}
 		rule.documentMustMatch.lastIndex = 0;
