@@ -8,24 +8,24 @@ A VS Code extension that detects insecure coding practices in real time using **
 
 ## Features
 
-| Feature                            | Detail                                                                                                          |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| **Real-time inline diagnostics**   | Red/yellow/blue squiggles appear as you type or on save                                                         |
-| **OWASP Top 10 (2021) — A01–A10**  | Full coverage: 27 rules for JS/TS, Python, and PHP                                                              |
-| **PHP security rules**             | 14 PHP-specific rules covering XSS, injection, file upload, type juggling, and more                             |
-| **PHP input validation rules**     | 18 rules based on the OWASP Input Validation Cheat Sheet                                                        |
-| **JavaScript / TypeScript rules**  | 12 rules for dangerous DOM APIs, NoSQL injection, JWT, rate limiting, and more                                  |
-| **HTTP security header rules**     | 12 rules for Apache `.conf` / `.htaccess` and IIS `web.config` — missing or misconfigured security headers      |
-| **Input validation & file upload** | 12 rules for JS/TS and Python: request param coercion, denylist sanitisation, SSTI, open redirect, file upload  |
-| **CSP analysis**                   | 8 rules detecting `unsafe-inline`, wildcards, missing directives, and report-uri                                |
-| **General secure-coding rules**    | 7 rules covering hardcoded secrets, insecure TLS, prototype pollution, XXE, ReDoS                               |
-| **Severity levels**                | Critical 🔴 / Warning 🟡 / Info 🔵 — configurable minimum threshold                                             |
-| **Quick Fixes**                    | Auto-fix, suppress with comment, or open OWASP reference docs                                                   |
-| **Security Report panel**          | Full webview summary: filter by severity, By Severity / By File views, severity filter chips, mitigated section |
-| **Workspace scan**                 | Scan every supported file across the workspace; raw-byte reader bypasses the tokenizer for large files          |
-| **Saved HTML + JSON reports**      | Each scan writes a timestamped `.html` + `.json` report to `.securityReport/`                                   |
-| **Justification / mitigation**     | Add a suppression justification in-source; persists across rescans                                              |
-| **Rule update checker**            | Compares bundled rules against a remote manifest and notifies on new versions                                   |
+| Feature                            | Detail                                                                                                         |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Real-time inline diagnostics**   | Red/yellow/blue squiggles appear as you type or on save                                                        |
+| **OWASP Top 10 (2021) — A01–A10**  | Full coverage: 27 rules for JS/TS, Python, and PHP                                                             |
+| **PHP security rules**             | 14 PHP-specific rules covering XSS, injection, file upload, type juggling, and more                            |
+| **PHP input validation rules**     | 18 rules based on the OWASP Input Validation Cheat Sheet                                                       |
+| **JavaScript / TypeScript rules**  | 12 rules for dangerous DOM APIs, NoSQL injection, JWT, rate limiting, and more                                 |
+| **HTTP security header rules**     | 12 rules for Apache `.conf` / `.htaccess` and IIS `web.config` — missing or misconfigured security headers     |
+| **Input validation & file upload** | 12 rules for JS/TS and Python: request param coercion, denylist sanitisation, SSTI, open redirect, file upload |
+| **CSP analysis**                   | 8 rules detecting `unsafe-inline`, wildcards, missing directives, and report-uri                               |
+| **General secure-coding rules**    | 7 rules covering hardcoded secrets, insecure TLS, prototype pollution, XXE, ReDoS                              |
+| **Severity levels**                | Critical 🔴 / Warning 🟡 / Info 🔵 — configurable minimum threshold                                            |
+| **Quick Fixes**                    | Auto-fix, suppress with comment, or open OWASP reference docs                                                  |
+| **Security Report panel**          | Full webview summary: By Severity / By File / ✅ Mitigated tabs, severity filter chips, cancellation banner    |
+| **Workspace scan**                 | Scan every supported file across the workspace; raw-byte reader bypasses the tokenizer for large files         |
+| **Saved HTML + JSON reports**      | Each scan writes a timestamped `.html` + `.json` report to `.securityReport/`                                  |
+| **Justification / mitigation**     | Add a suppression justification in-source; persists across rescans                                             |
+| **Rule update checker**            | Compares bundled rules against a remote manifest and notifies on new versions                                  |
 
 ---
 
@@ -44,13 +44,15 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 ## Configuration
 
-| Setting                           | Type    | Default          | Description                                                        |
-| --------------------------------- | ------- | ---------------- | ------------------------------------------------------------------ |
-| `owaspHelper.enableOnSave`        | boolean | `true`           | Re-scan the file automatically on every save                       |
-| `owaspHelper.severity`            | string  | `"all"`          | Minimum severity to report: `all`, `critical`, `warning`, `info`   |
-| `owaspHelper.ignoredRules`        | array   | `[]`             | Rule IDs to suppress, e.g. `["A03-XSS-INNERHTML", "GEN-HTTP-URL"]` |
-| `owaspHelper.autoCheckForUpdates` | boolean | `true`           | Check for new rule versions once per day on startup                |
-| `owaspHelper.rulesManifestUrl`    | string  | (GitHub raw URL) | URL of the remote `rules-manifest.json` used for update comparison |
+| Setting                           | Type    | Default                       | Description                                                                                                                                          |
+| --------------------------------- | ------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `owaspHelper.enableOnSave`        | boolean | `true`                        | Re-scan the file automatically on every save                                                                                                         |
+| `owaspHelper.severity`            | string  | `"all"`                       | Minimum severity to report: `all`, `critical`, `warning`, `info`                                                                                     |
+| `owaspHelper.ignoredRules`        | array   | `[]`                          | Rule IDs to suppress, e.g. `["A03-XSS-INNERHTML", "GEN-HTTP-URL"]`                                                                                   |
+| `owaspHelper.fastScanExclude`     | array   | (see below)                   | Glob patterns excluded during **Fast Scan**. Defaults: `**/node_modules/**`, `**/out/**`, `**/dist/**`, `**/.venv/**`, `**/*.min.js`, `**/*.min.jsx` |
+| `owaspHelper.fullScanExclude`     | array   | `["**/out/**", "**/dist/**"]` | Glob patterns excluded during **Full Scan**                                                                                                          |
+| `owaspHelper.autoCheckForUpdates` | boolean | `true`                        | Check for new rule versions once per day on startup                                                                                                  |
+| `owaspHelper.rulesManifestUrl`    | string  | (GitHub raw URL)              | URL of the remote `rules-manifest.json` used for update comparison                                                                                   |
 
 ---
 
@@ -246,7 +248,7 @@ Based on the [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp
 To suppress a specific rule for a line, use a Quick Fix action or manually add a suppression comment above the line:
 
 ```php
-// owasphelper-disable PHP-TYPE-JUGGLING
+// owasp-ignore: PHP-TYPE-JUGGLING -- suppressed
 if ($user_input == "admin") { ... }
 ```
 

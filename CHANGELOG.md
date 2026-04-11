@@ -5,6 +5,38 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [0.4.0] — 2026-04-11
+
+### Added
+
+- **Mitigated findings tab** — the report panel now has a dedicated **✅ Mitigated** tab alongside "By Severity" and "By File". The tab only appears when there are mitigated findings and participates fully in the existing tab-switching system; mitigated findings are no longer always visible regardless of the active tab.
+- **Cancellation indicator in report** — if a workspace scan is cancelled mid-run, the report panel shows a red ⚠️ banner ("Scan was cancelled — results below are partial") and the toast notification message reflects the partial state.
+- **`apacheconf` and `xml` quick-fix support** — lightbulb Quick Fix actions (suppress, open docs) now appear in Apache `.conf` / `.htaccess` and IIS `web.config` files.
+
+### Fixed
+
+- **`showReport` command consistency** — "Show Security Report" now always re-displays the findings from the last workspace scan rather than an ad-hoc mix of per-file scan results. Falls back to per-file cache if no workspace scan has been run yet.
+- **Per-document debounce** — editing two files simultaneously no longer cancels the pending re-scan for the other file. Each document now has its own independent 800 ms debounce timer.
+- **Update notification spam** — "A newer rule pack is available" notification is now suppressed on startup if the user has already been notified about that exact remote version. The notification fires again only when a new version beyond the last-seen one is published.
+- **`fixReplacer` in config files** — auto-fix code suggestions are no longer inserted into Apache `.conf` / `.htaccess` or IIS `web.config` files; only "suppress" and "open docs" quick fixes are offered for those file types.
+- **`ignoredRules` performance** — the ignored-rules list is now converted to a `Set` before each scan loop, reducing per-rule lookup from O(n) to O(1).
+- **`totalRules` always zero** — `RULES_METADATA.totalRules` is now populated at extension startup with the actual count of loaded rules. Previously the `as const` assertion prevented the runtime assignment from taking effect.
+- **Glob exclude patterns for file extensions** — `fastScanExclude` / `fullScanExclude` patterns in the form `**/*.min.js` now correctly match files by suffix. Previously only `**/dir/**` directory patterns were handled, so extension-based excludes were silently ignored.
+- **CSP "missing directive" false negatives** — all four CSP rules that detect missing directives (`CSP-MISSING-DEFAULT-SRC`, `CSP-MISSING-OBJECT-SRC`, `CSP-MISSING-FRAME-ANCESTORS`, `CSP-REPORT-MISSING`) were using a broken negative-lookahead pattern that could never match. Patterns were corrected to anchor the lookahead immediately after `Content-Security-Policy`.
+- **Insecure cookie false positives** — `A07-INSECURE-COOKIE` (`res.cookie`) no longer fires when the cookie already has `secure: true` in its options object.
+- **PHP `assert()` over-matching** — `PHP-ASSERT-INJECTION` no longer flags `assert()` calls with a bare variable; it now only flags calls with a string literal or string concatenation argument (the actual injection vectors).
+- **`A02-WEAK-HASH-MD5` catch-all** — removed the overly broad `/md5\s*\(/i` pattern that triggered on any function named `md5`. The rule now requires the canonical `md5()` call form.
+- **PHP `htmlspecialchars` false positives** — `PHP-HTMLSPECIALCHARS-FLAGS` now checks for the `ENT_QUOTES` flag only within the argument list of the call, preventing matches on nearby code.
+- **Suppress comment format** — quick-fix "Suppress this rule" comments now use the `owasp-ignore: RULE-ID -- suppressed` format that the diagnostic provider actually reads. The previous `owaspHelper-disable-next-line` format was never recognised.
+- **Per-file scan false positives** — the on-type / on-save scanner no longer scans `node_modules/`, `out/`, `dist/`, `.venv/`, or minified files opened in the editor, eliminating thousands of spurious diagnostics from bundled output files.
+- **Dependency scanner blocking I/O** — all four manifest parse functions (`package.json`, `package-lock.json`, `requirements.txt`, `composer.json`) now use `fs.promises.readFile` instead of the synchronous `readFileSync`.
+- **Missing rule modules in quick-fix** — `httpHeaderRules` and `inputValidationRules` were absent from the `ALL_RULES` array in the code action provider; quick fixes for those rule packs now resolve correctly.
+- **Missing activation events** — `owaspHelper.checkForUpdates` and `owaspHelper.showRulesStatus` were missing from `activationEvents`; the commands now activate the extension when invoked from the Command Palette.
+- **Saved HTML report CSP** — the HTML file written to `.securityReport/` now includes a `Content-Security-Policy` meta tag.
+- **Update checker forced HTTPS** — the rules manifest fetch now rejects `http://` manifest URLs at the call site, preventing accidental plaintext fetches.
+
+---
+
 ## [0.3.0] — 2026-04-09
 
 ### Added
