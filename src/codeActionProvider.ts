@@ -1,26 +1,6 @@
 import * as vscode from "vscode";
-import {
-	owaspRules,
-	cspRules,
-	generalRules,
-	phpRules,
-	jsRules,
-	phpInputValidationRules,
-	httpHeaderRules,
-	inputValidationRules,
-} from "./rules";
+import { ALL_RULES } from "./rules";
 import { SecurityRule } from "./types";
-
-const ALL_RULES: SecurityRule[] = [
-	...owaspRules,
-	...cspRules,
-	...generalRules,
-	...phpRules,
-	...jsRules,
-	...phpInputValidationRules,
-	...httpHeaderRules,
-	...inputValidationRules,
-];
 const RULE_MAP = new Map<string, SecurityRule>(ALL_RULES.map((r) => [r.id, r]));
 
 export class SecurityCodeActionProvider implements vscode.CodeActionProvider {

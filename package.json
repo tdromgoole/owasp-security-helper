@@ -2,7 +2,7 @@
 	"name": "owasp-security-helper",
 	"displayName": "OWASP Security Helper",
 	"description": "Detects insecure coding practices with OWASP Top 10 rules, Content Security Policy, HTTP security headers, PHP/JS/TS/Python input validation, and file upload patterns — inline diagnostics, quick fixes, and a security report panel.",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"publisher": "ThomasDromgoole",
 	"repository": {
 		"type": "git",
@@ -11,6 +11,7 @@
 	"engines": {
 		"vscode": "^1.85.0"
 	},
+	"icon": "images/icon.png",
 	"categories": [
 		"Linters",
 		"Other"
@@ -33,13 +34,15 @@
 		"onLanguage:typescriptreact",
 		"onLanguage:python",
 		"onLanguage:php",
+		"onLanguage:nginx",
 		"onCommand:owaspHelper.checkDependencies",
 		"onCommand:owaspHelper.scanWorkspace",
 		"onCommand:owaspHelper.scanWorkspaceFull",
 		"onCommand:owaspHelper.showReport",
 		"onCommand:owaspHelper.openSavedReport",
 		"onCommand:owaspHelper.checkForUpdates",
-		"onCommand:owaspHelper.showRulesStatus"
+		"onCommand:owaspHelper.showRulesStatus",
+		"onCommand:owaspHelper.convertReportToPdf"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -70,7 +73,11 @@
 			},
 			{
 				"command": "owaspHelper.openSavedReport",
-				"title": "OWASP Helper: Open in Browser"
+				"title": "OWASP Helper: Open Report"
+			},
+			{
+				"command": "owaspHelper.convertReportToPdf",
+				"title": "OWASP Helper: Export to PDF"
 			}
 		],
 		"menus": {
@@ -96,6 +103,10 @@
 				{
 					"command": "owaspHelper.openSavedReport",
 					"when": "false"
+				},
+				{
+					"command": "owaspHelper.convertReportToPdf",
+					"when": "false"
 				}
 			],
 			"explorer/context": [
@@ -113,18 +124,23 @@
 					"command": "owaspHelper.openSavedReport",
 					"group": "security@1",
 					"when": "resourceExtname == .html && resourcePath =~ /\\.securityReport[\\\\/]/"
+				},
+				{
+					"command": "owaspHelper.convertReportToPdf",
+					"group": "security@2",
+					"when": "resourceExtname == .html && resourcePath =~ /\\.securityReport[\\\\/]/"
 				}
 			],
 			"editor/title": [
 				{
 					"command": "owaspHelper.scanWorkspace",
 					"group": "navigation",
-					"when": "resourceLangId =~ /javascript|typescript|python|php/"
+					"when": "resourceLangId =~ /javascript|typescript|python|php|apacheconf|nginx|xml/"
 				},
 				{
 					"command": "owaspHelper.scanWorkspaceFull",
 					"group": "navigation",
-					"when": "resourceLangId =~ /javascript|typescript|python|php/"
+					"when": "resourceLangId =~ /javascript|typescript|python|php|apacheconf|nginx|xml/"
 				}
 			]
 		},
@@ -176,8 +192,10 @@
 						"type": "string"
 					},
 					"default": [
+						"**/node_modules/**",
 						"**/out/**",
-						"**/dist/**"
+						"**/dist/**",
+						"**/.venv/**"
 					],
 					"description": "Glob patterns to exclude during a Full Scan (Including large files)."
 				},
@@ -200,6 +218,7 @@
 		"clean": "node -e \"require('fs').readdirSync('out', {withFileTypes:true}).forEach(f => { const p = 'out/' + f.name; if (f.isDirectory()) require('fs').rmSync(p, {recursive:true}); else if (f.name !== '.gitkeep') require('fs').unlinkSync(p); })\" || true",
 		"compile": "tsc -p ./",
 		"watch": "tsc -watch -p ./",
+		"test": "npm run compile && node out/test/rules.test.js",
 		"lint": "eslint src --ext ts",
 		"package": "vsce package"
 	},

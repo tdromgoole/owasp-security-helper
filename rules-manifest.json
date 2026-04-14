@@ -1,0 +1,7 @@
+{
+	"rulesVersion": "2026.04.2",
+	"lastUpdated": "2026-04-13",
+	"owaspCoverage": "OWASP Top 10 (2021) — A01 through A10",
+	"changelogUrl": "https://github.com/tdromgoole/owasp-security-helper/releases",
+	"releaseNotes": "v0.5.0: nginx support, poetry.lock/Pipfile.lock scanning, 84-test suite, rule bug fixes, reduced false positives."
+}

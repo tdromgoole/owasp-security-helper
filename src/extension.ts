@@ -1,3 +1,4 @@
+import * as path from "path";
 import * as vscode from "vscode";
 import { scanDocument, publishDiagnostics } from "./diagnosticProvider";
 import { SecurityReportPanel } from "./reportPanel";
@@ -7,6 +8,7 @@ import { writeSecurityReport, loadSavedReport } from "./reportWriter";
 import { SecurityFinding } from "./types";
 import { scanDependencies } from "./dependencyScanner";
 import { DependencyPanel } from "./dependencyPanel";
+import { convertReportToPdf } from "./pdfExporter";
 
 const SUPPORTED_SELECTOR: vscode.DocumentSelector = [
 	{ language: "javascript" },
@@ -16,6 +18,7 @@ const SUPPORTED_SELECTOR: vscode.DocumentSelector = [
 	{ language: "python" },
 	{ language: "php" },
 	{ language: "apacheconf" },
+	{ language: "nginx" },
 	{ language: "xml" },
 ];
 
@@ -187,6 +190,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		config: "xml",
 		webconfig: "xml",
 		htaccess: "apacheconf",
+		nginxconf: "nginx",
 	};
 
 	async function openForScan(uri: vscode.Uri): Promise<vscode.TextDocument> {
@@ -378,6 +382,7 @@ export function activate(context: vscode.ExtensionContext): void {
 						scannedCount,
 						skippedCount,
 					);
+					SecurityReportPanel.setReportPath(reportPath);
 					const open = "Open in Browser";
 					vscode.window
 						.showInformationMessage(summaryMsg, open)
@@ -453,7 +458,13 @@ export function activate(context: vscode.ExtensionContext): void {
 	// ── Command: Check for Rule Updates ───────────────────────────────────────
 	context.subscriptions.push(
 		vscode.commands.registerCommand("owaspHelper.checkForUpdates", () => {
-			checkForRuleUpdates(context, false);
+			checkForRuleUpdates(context, false).catch((err) => {
+				vscode.window.showErrorMessage(
+					`OWASP Helper: Update check failed — ${
+						err instanceof Error ? err.message : String(err)
+					}`,
+				);
+			});
 		}),
 	);
 
@@ -479,7 +490,7 @@ export function activate(context: vscode.ExtensionContext): void {
 							}
 							if (results.length === 0) {
 								vscode.window.showInformationMessage(
-									"OWASP Helper: No package.json, requirements.txt, or composer.json files found in this workspace.",
+									"OWASP Helper: No package.json, requirements.txt, poetry.lock, Pipfile.lock, or composer.json files found in this workspace.",
 								);
 								return;
 							}
@@ -545,6 +556,7 @@ export function activate(context: vscode.ExtensionContext): void {
 						scannedCount,
 						skippedCount,
 					);
+					SecurityReportPanel.setReportPath(uri.fsPath);
 				} catch (err) {
 					const msg =
 						err instanceof Error && err.message === "NO_JSON"
@@ -556,10 +568,67 @@ export function activate(context: vscode.ExtensionContext): void {
 		),
 	);
 
+	// ── Command: Convert Report to PDF ──────────────────────────────────────
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			"owaspHelper.convertReportToPdf",
+			async (uri?: vscode.Uri) => {
+				if (!uri) {
+					return;
+				}
+				await vscode.window.withProgress(
+					{
+						location: vscode.ProgressLocation.Notification,
+						title: "OWASP Helper: Converting report to PDF…",
+						cancellable: false,
+					},
+					async () => {
+						try {
+							const pdfPath = await convertReportToPdf(
+								uri.fsPath,
+							);
+							const open = "Open PDF";
+							const choice =
+								await vscode.window.showInformationMessage(
+									`OWASP Helper: PDF saved — ${path.basename(pdfPath)}`,
+									open,
+								);
+							if (choice === open) {
+								vscode.env.openExternal(
+									vscode.Uri.file(pdfPath),
+								);
+							}
+						} catch (err) {
+							if (
+								err instanceof Error &&
+								err.message === "NO_BROWSER"
+							) {
+								vscode.window.showErrorMessage(
+									"OWASP Helper: No Chromium-based browser found. " +
+										"Install Google Chrome or Microsoft Edge to enable PDF export.",
+								);
+							} else {
+								vscode.window.showErrorMessage(
+									`OWASP Helper: PDF conversion failed — ${
+										err instanceof Error
+											? err.message
+											: String(err)
+									}`,
+								);
+							}
+						}
+					},
+				);
+			},
+		),
+	);
+
 	// ── Auto-check for updates on startup ────────────────────────────────────
 	const config = vscode.workspace.getConfiguration("owaspHelper");
 	if (config.get<boolean>("autoCheckForUpdates", true)) {
-		checkForRuleUpdates(context, true);
+		checkForRuleUpdates(context, true).catch(() => {
+			/* background check failure is silent */
+		});
 	}
 }
 

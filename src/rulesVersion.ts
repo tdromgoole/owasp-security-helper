@@ -6,7 +6,7 @@
  *
  * Format: YYYY.MM.PATCH  (calendar versioning)
  */
-export const RULES_VERSION = "2026.04.1";
+export const RULES_VERSION = "2026.04.2";
 
 /** Human-readable coverage summary shown in the report panel and notifications. */
 export const RULES_METADATA: {
@@ -18,7 +18,8 @@ export const RULES_METADATA: {
 } = {
 	version: RULES_VERSION,
 	owaspCoverage: "OWASP Top 10 (2021) — A01 through A10",
-	lastUpdated: "2026-04-03",
+	lastUpdated: "2026-04-13",
 	totalRules: 0,
-	changelogUrl: "https://github.com/tdromgoole/owasp-security-helper/releases",
+	changelogUrl:
+		"https://github.com/tdromgoole/owasp-security-helper/releases",
 };

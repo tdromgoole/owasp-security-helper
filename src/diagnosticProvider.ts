@@ -1,26 +1,6 @@
 import * as vscode from "vscode";
-import {
-	owaspRules,
-	cspRules,
-	generalRules,
-	phpRules,
-	jsRules,
-	phpInputValidationRules,
-	httpHeaderRules,
-	inputValidationRules,
-} from "./rules";
-import { SecurityFinding, SecurityRule, Severity } from "./types";
-
-const ALL_RULES: SecurityRule[] = [
-	...owaspRules,
-	...cspRules,
-	...generalRules,
-	...phpRules,
-	...jsRules,
-	...phpInputValidationRules,
-	...httpHeaderRules,
-	...inputValidationRules,
-];
+import { ALL_RULES } from "./rules";
+import { SecurityFinding, Severity } from "./types";
 
 const SUPPORTED_LANGUAGES = new Set([
 	"javascript",
@@ -30,6 +10,7 @@ const SUPPORTED_LANGUAGES = new Set([
 	"python",
 	"php",
 	"apacheconf",
+	"nginx",
 	"xml",
 ]);
 

@@ -59,11 +59,12 @@ export const jsRules: SecurityRule[] = [
 	{
 		id: "JS-POSTMESSAGE-NO-ORIGIN",
 		category: "A05: Security Misconfiguration",
-		title: "postMessage event listener without origin check",
+		title: "postMessage event listener — verify event.origin in the handler",
 		description:
 			"Handling 'message' events without verifying event.origin allows any page to " +
-			"send arbitrary messages and may lead to data theft or XSS.",
-		severity: "warning",
+			"send arbitrary messages and may lead to data theft or XSS. " +
+			"(Advisory: confirm event.origin is checked inside the callback body.)",
+		severity: "info",
 		languages: [
 			"javascript",
 			"javascriptreact",
@@ -237,11 +238,12 @@ export const jsRules: SecurityRule[] = [
 	{
 		id: "JS-NO-RATE-LIMIT",
 		category: "A07: Identification & Authentication Failures",
-		title: "Authentication route without apparent rate limiting",
+		title: "Authentication route — confirm rate limiting is applied",
 		description:
 			"Login and password-reset endpoints without rate limiting are vulnerable to " +
-			"brute-force and credential stuffing attacks.",
-		severity: "warning",
+			"brute-force and credential stuffing attacks. " +
+			"(Advisory: confirm express-rate-limit or equivalent is applied via app.use() before this route.)",
+		severity: "info",
 		languages: [
 			"javascript",
 			"javascriptreact",

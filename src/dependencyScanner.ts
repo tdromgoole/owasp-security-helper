@@ -294,6 +294,63 @@ async function parseComposerJson(
 	}
 }
 
+// ── Poetry lock file parser ───────────────────────────────────────────────────
+
+/**
+ * Parses `poetry.lock` (TOML-subset, no external dep) to extract resolved
+ * package names and exact version strings.
+ */
+async function parsePoetryLock(
+	filePath: string,
+): Promise<Array<{ name: string; version: string }>> {
+	const deps: Array<{ name: string; version: string }> = [];
+	try {
+		const content = await fs.promises.readFile(filePath, "utf8");
+		// Each package block starts with [[package]]
+		const blocks = content.split(/\[\[package\]\]/g).slice(1);
+		for (const block of blocks) {
+			const nameMatch = block.match(/^\s*name\s*=\s*"([^"]+)"/m);
+			const verMatch = block.match(/^\s*version\s*=\s*"([^"]+)"/m);
+			if (nameMatch && verMatch) {
+				deps.push({ name: nameMatch[1], version: verMatch[1] });
+			}
+		}
+	} catch {
+		/* ignore missing / unreadable */
+	}
+	return deps;
+}
+
+/**
+ * Parses `Pipfile.lock` (JSON) to extract resolved package names and versions.
+ */
+async function parsePipfileLock(
+	filePath: string,
+): Promise<Array<{ name: string; version: string }>> {
+	const deps: Array<{ name: string; version: string }> = [];
+	try {
+		const raw = JSON.parse(await fs.promises.readFile(filePath, "utf8"));
+		for (const section of ["default", "develop"] as const) {
+			const obj = raw[section];
+			if (!obj || typeof obj !== "object") {
+				continue;
+			}
+			for (const [name, meta] of Object.entries<{
+				version?: string;
+			}>(obj)) {
+				// Pipfile.lock stores version as "==1.2.3"
+				const ver = meta?.version?.replace(/^==/, "");
+				if (ver && /^\d/.test(ver)) {
+					deps.push({ name, version: ver });
+				}
+			}
+		}
+	} catch {
+		/* ignore */
+	}
+	return deps;
+}
+
 // ── OSV vulnerability API ─────────────────────────────────────────────────────
 
 interface OsvVuln {
@@ -458,7 +515,7 @@ export async function scanDependencies(
 	// 1. Discover manifest files
 	report("Finding dependency files…");
 	const fileUris = await vscode.workspace.findFiles(
-		"{**/package.json,**/requirements.txt,**/composer.json}",
+		"{**/package.json,**/requirements.txt,**/composer.json,**/poetry.lock,**/Pipfile.lock}",
 		"{**/node_modules/**,**/.venv/**,**/vendor/**,**/out/**,**/dist/**}",
 	);
 	if (token?.isCancellationRequested || fileUris.length === 0) {
@@ -503,6 +560,24 @@ export async function scanDependencies(
 			}
 		} else if (base === "requirements.txt") {
 			for (const dep of await parseRequirementsTxt(filePath)) {
+				rawDeps.push({
+					...dep,
+					resolvedVersion: dep.version,
+					ecosystem: "pypi",
+					sourceFile: filePath,
+				});
+			}
+		} else if (base === "poetry.lock") {
+			for (const dep of await parsePoetryLock(filePath)) {
+				rawDeps.push({
+					...dep,
+					resolvedVersion: dep.version,
+					ecosystem: "pypi",
+					sourceFile: filePath,
+				});
+			}
+		} else if (base === "Pipfile.lock") {
+			for (const dep of await parsePipfileLock(filePath)) {
 				rawDeps.push({
 					...dep,
 					resolvedVersion: dep.version,

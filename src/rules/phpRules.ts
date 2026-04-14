@@ -19,7 +19,8 @@ export const phpRules: SecurityRule[] = [
 		patterns: [
 			/echo\s+\$_(?:GET|POST|REQUEST|COOKIE|SERVER)\s*\[/i,
 			/print\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE|SERVER)\s*\[/i,
-			/echo\s+.*\$_(?:GET|POST|REQUEST|COOKIE)\s*\[/i,
+			// echo with string concatenation involving superglobals (not wrapped in a sanitizer)
+			/echo\s+(?!(?:htmlspecialchars|htmlentities|intval|strip_tags|number_format)\s*\().*\.\s*\$_(?:GET|POST|REQUEST|COOKIE)\s*\[/i,
 		],
 		fixDescription:
 			"Wrap output in htmlspecialchars($val, ENT_QUOTES, 'UTF-8') before echoing user input.",

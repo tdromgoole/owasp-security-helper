@@ -5,6 +5,28 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [0.5.0] — 2026-04-13
+
+### Added
+
+- **nginx config file scanning** — all 12 HTTP security header rules now fire on nginx configuration files (`nginx` language). The Supported Languages list and editor title-bar command visibility both include nginx.
+- **`poetry.lock` and `Pipfile.lock` dependency scanning** — the workspace dependency scanner now recognises Python Poetry and Pipenv lock files in addition to `package.json`, `requirements.txt`, and `composer.json`.
+- **Test suite** — 84 automated tests covering positive and negative matches across all 110 rules; run with `npm test`.
+
+### Fixed
+
+- **`A04-MISSING-CSRF` PHP regex** — the previous regex used a malformed negative lookahead that matched a literal `=` character; corrected to `/^(?!.*(?:csrf|token)).*\$_(?:POST|REQUEST)\s*\[/i` so only POST/REQUEST handlers without a CSRF token are flagged.
+- **`A03-XSS-INNERHTML` false negatives** — lookahead backtracking allowed the rule to miss unsafe `innerHTML` assignments to dynamic expressions; the lookahead now correctly includes the optional whitespace between `=` and a quote character.
+- **`A02-WEAK-HASH-MD5` Python false negatives** — the combined JS + Python pattern could not match Python's `hashlib.md5()`; split into two dedicated patterns covering `createHash('md5')` and `hashlib.md5()` independently.
+- **`PHP-ECHO-XSS` false positives** — the overly broad echo pattern no longer fires on output wrapped in `htmlspecialchars()` or a similar sanitiser; only unsanitised concatenated `echo` expressions are flagged.
+- **`JS-NO-RATE-LIMIT` and `JS-POSTMESSAGE-NO-ORIGIN` severity** — downgraded from Warning to Info; both are advisory rules that require additional context to confirm a real vulnerability.
+- **Editor title-bar command visibility** — the `when` clause for the editor title contribution point was missing several language IDs (`nginx`, `xml`); the toolbar icon now appears in all supported file types.
+- **`fullScanExclude` default** — corrected to include `**/node_modules/**` and `**/.venv/**`, which were unintentionally absent from the previous default.
+- **`ALL_RULES` rebuilt multiple times** — `diagnosticProvider`, `codeActionProvider`, and `updateChecker` each independently reconstructed the full rule array; all three now reference the single `ALL_RULES` export from `rules/index.ts`.
+- **Duplicated report utilities** — `escapeHtml`, `truncateMatch`, and `getRelativePath` were defined independently in both `reportPanel.ts` and `reportWriter.ts`; extracted to a shared `reportUtils.ts` module.
+
+---
+
 ## [0.4.0] — 2026-04-11
 
 ### Added

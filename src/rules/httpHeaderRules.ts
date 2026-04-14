@@ -27,7 +27,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"No Strict-Transport-Security header is configured. Without HSTS, browsers may connect via plain HTTP, exposing users to downgrade and man-in-the-middle attacks.",
 		severity: "warning",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		fileNamePattern: WEB_CONFIG,
 		patterns: [],
 		documentMustMatch: /Strict-Transport-Security/i,
@@ -44,7 +44,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"No Content-Security-Policy header is configured. Without it the browser places no restriction on which resources can be loaded, making XSS and data-injection attacks significantly more impactful.",
 		severity: "warning",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		fileNamePattern: WEB_CONFIG,
 		patterns: [],
 		documentMustMatch: /Content-Security-Policy/i,
@@ -61,7 +61,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"X-Frame-Options is not set. Without it the page can be embedded in a frame or iframe on any origin, enabling clickjacking attacks.",
 		severity: "warning",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		fileNamePattern: WEB_CONFIG,
 		patterns: [],
 		documentMustMatch: /X-Frame-Options/i,
@@ -78,7 +78,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"X-Content-Type-Options is not set. Without 'nosniff', browsers may MIME-sniff responses and execute non-script files as scripts.",
 		severity: "warning",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		fileNamePattern: WEB_CONFIG,
 		patterns: [],
 		documentMustMatch: /X-Content-Type-Options/i,
@@ -95,7 +95,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"Referrer-Policy is not set. Without it the browser may include the full URL in the Referer header sent to third-party sites, leaking sensitive path and query-string data.",
 		severity: "info",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		fileNamePattern: WEB_CONFIG,
 		patterns: [],
 		documentMustMatch: /Referrer-Policy/i,
@@ -112,7 +112,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"Permissions-Policy is not set. Without it the browser may grant access to sensitive APIs (camera, microphone, geolocation) to pages or injected scripts without restriction.",
 		severity: "info",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		fileNamePattern: WEB_CONFIG,
 		patterns: [],
 		documentMustMatch: /Permissions-Policy/i,
@@ -131,7 +131,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"Cross-Origin-Opener-Policy is not set. Without it, attackers may gain a reference to your window object via cross-origin pop-ups, enabling cross-origin information leakage (e.g. XS-Leaks) and Spectre-style attacks.",
 		severity: "info",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		fileNamePattern: WEB_CONFIG,
 		patterns: [],
 		documentMustMatch: /Cross-Origin-Opener-Policy/i,
@@ -148,7 +148,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"X-XSS-Protection is not explicitly configured. Modern browsers ignore this header in favour of CSP, but explicitly setting it to 0 prevents older browsers from enabling a built-in XSS filter that can introduce new vulnerabilities.",
 		severity: "info",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		fileNamePattern: WEB_CONFIG,
 		patterns: [],
 		documentMustMatch: /X-XSS-Protection/i,
@@ -167,7 +167,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"A max-age of 0 instructs browsers to delete the stored HSTS policy, allowing future plain-HTTP connections and enabling downgrade attacks.",
 		severity: "critical",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		patterns: [/Strict-Transport-Security[^;\n\r]*max-age\s*=\s*0\b/i],
 		fixDescription:
 			'Set max-age to at least 31536000 (1 year). Recommended: "max-age=63072000; includeSubDomains; preload"',
@@ -182,7 +182,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"The Strict-Transport-Security header does not include 'includeSubDomains'. Subdomains remain reachable over plain HTTP and are not protected against downgrade attacks.",
 		severity: "warning",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		// Negative lookahead: fires when the line has "Strict-Transport-Security"
 		// but "includeSubDomains" does NOT appear later on the same line.
 		patterns: [/Strict-Transport-Security(?![^\n\r]*includeSubDomains)/i],
@@ -199,7 +199,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			"ALLOWALL is not a recognised X-Frame-Options value; browsers treat it as no restriction, leaving the site fully vulnerable to clickjacking.",
 		severity: "critical",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		patterns: [/X-Frame-Options[:\s='"]+ALLOWALL/i],
 		fixDescription: 'Change X-Frame-Options to "DENY" or "SAMEORIGIN".',
 		reference:
@@ -213,7 +213,7 @@ export const httpHeaderRules: SecurityRule[] = [
 		description:
 			'"unsafe-url" sends the full URL (scheme, host, path, and query string) to all origins on every navigation, leaking potentially sensitive URL parameters to third parties.',
 		severity: "warning",
-		languages: ["apacheconf", "xml"],
+		languages: ["apacheconf", "nginx", "xml"],
 		patterns: [/Referrer-Policy[^\n\r]*unsafe-url/i],
 		fixDescription:
 			'Replace "unsafe-url" with "strict-origin-when-cross-origin" or "no-referrer".',

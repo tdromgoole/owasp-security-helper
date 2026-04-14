@@ -4,28 +4,30 @@ A VS Code extension that detects insecure coding practices in real time using **
 
 **110 rules** across 8 categories — diagnostics appear inline as you type, with Quick Fix actions and a full security report panel.
 
+![Report Example](https://raw.githubusercontent.com/tdromgoole/owasp-security-helper/refs/heads/main/images/reportExample.png)
+
 ---
 
 ## Features
 
-| Feature                            | Detail                                                                                                         |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| **Real-time inline diagnostics**   | Red/yellow/blue squiggles appear as you type or on save                                                        |
-| **OWASP Top 10 (2021) — A01–A10**  | Full coverage: 27 rules for JS/TS, Python, and PHP                                                             |
-| **PHP security rules**             | 14 PHP-specific rules covering XSS, injection, file upload, type juggling, and more                            |
-| **PHP input validation rules**     | 18 rules based on the OWASP Input Validation Cheat Sheet                                                       |
-| **JavaScript / TypeScript rules**  | 12 rules for dangerous DOM APIs, NoSQL injection, JWT, rate limiting, and more                                 |
-| **HTTP security header rules**     | 12 rules for Apache `.conf` / `.htaccess` and IIS `web.config` — missing or misconfigured security headers     |
-| **Input validation & file upload** | 12 rules for JS/TS and Python: request param coercion, denylist sanitisation, SSTI, open redirect, file upload |
-| **CSP analysis**                   | 8 rules detecting `unsafe-inline`, wildcards, missing directives, and report-uri                               |
-| **General secure-coding rules**    | 7 rules covering hardcoded secrets, insecure TLS, prototype pollution, XXE, ReDoS                              |
-| **Severity levels**                | Critical 🔴 / Warning 🟡 / Info 🔵 — configurable minimum threshold                                            |
-| **Quick Fixes**                    | Auto-fix, suppress with comment, or open OWASP reference docs                                                  |
-| **Security Report panel**          | Full webview summary: By Severity / By File / ✅ Mitigated tabs, severity filter chips, cancellation banner    |
-| **Workspace scan**                 | Scan every supported file across the workspace; raw-byte reader bypasses the tokenizer for large files         |
-| **Saved HTML + JSON reports**      | Each scan writes a timestamped `.html` + `.json` report to `.securityReport/`                                  |
-| **Justification / mitigation**     | Add a suppression justification in-source; persists across rescans                                             |
-| **Rule update checker**            | Compares bundled rules against a remote manifest and notifies on new versions                                  |
+| Feature                            | Detail                                                                                                             |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Real-time inline diagnostics**   | Red/yellow/blue squiggles appear as you type or on save                                                            |
+| **OWASP Top 10 (2021) — A01–A10**  | Full coverage: 27 rules for JS/TS, Python, and PHP                                                                 |
+| **PHP security rules**             | 14 PHP-specific rules covering XSS, injection, file upload, type juggling, and more                                |
+| **PHP input validation rules**     | 18 rules based on the OWASP Input Validation Cheat Sheet                                                           |
+| **JavaScript / TypeScript rules**  | 12 rules for dangerous DOM APIs, NoSQL injection, JWT, rate limiting, and more                                     |
+| **HTTP security header rules**     | 12 rules for Apache `.conf` / `.htaccess`, IIS `web.config`, and nginx — missing or misconfigured security headers |
+| **Input validation & file upload** | 12 rules for JS/TS and Python: request param coercion, denylist sanitisation, SSTI, open redirect, file upload     |
+| **CSP analysis**                   | 8 rules detecting `unsafe-inline`, wildcards, missing directives, and report-uri                                   |
+| **General secure-coding rules**    | 7 rules covering hardcoded secrets, insecure TLS, prototype pollution, XXE, ReDoS                                  |
+| **Severity levels**                | Critical 🔴 / Warning 🟡 / Info 🔵 — configurable minimum threshold                                                |
+| **Quick Fixes**                    | Auto-fix, suppress with comment, or open OWASP reference docs                                                      |
+| **Security Report panel**          | Full webview summary: By Severity / By File / ✅ Mitigated tabs, severity filter chips, cancellation banner        |
+| **Workspace scan**                 | Scan every supported file across the workspace; raw-byte reader bypasses the tokenizer for large files             |
+| **Saved HTML + JSON reports**      | Each scan writes a timestamped `.html` + `.json` report to `.securityReport/`                                      |
+| **Justification / mitigation**     | Add a suppression justification in-source; persists across rescans                                                 |
+| **Rule update checker**            | Compares bundled rules against a remote manifest and notifies on new versions                                      |
 
 ---
 
@@ -44,15 +46,15 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 ## Configuration
 
-| Setting                           | Type    | Default                       | Description                                                                                                                                          |
-| --------------------------------- | ------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `owaspHelper.enableOnSave`        | boolean | `true`                        | Re-scan the file automatically on every save                                                                                                         |
-| `owaspHelper.severity`            | string  | `"all"`                       | Minimum severity to report: `all`, `critical`, `warning`, `info`                                                                                     |
-| `owaspHelper.ignoredRules`        | array   | `[]`                          | Rule IDs to suppress, e.g. `["A03-XSS-INNERHTML", "GEN-HTTP-URL"]`                                                                                   |
-| `owaspHelper.fastScanExclude`     | array   | (see below)                   | Glob patterns excluded during **Fast Scan**. Defaults: `**/node_modules/**`, `**/out/**`, `**/dist/**`, `**/.venv/**`, `**/*.min.js`, `**/*.min.jsx` |
-| `owaspHelper.fullScanExclude`     | array   | `["**/out/**", "**/dist/**"]` | Glob patterns excluded during **Full Scan**                                                                                                          |
-| `owaspHelper.autoCheckForUpdates` | boolean | `true`                        | Check for new rule versions once per day on startup                                                                                                  |
-| `owaspHelper.rulesManifestUrl`    | string  | (GitHub raw URL)              | URL of the remote `rules-manifest.json` used for update comparison                                                                                   |
+| Setting                           | Type    | Default                                                            | Description                                                                                                                                          |
+| --------------------------------- | ------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `owaspHelper.enableOnSave`        | boolean | `true`                                                             | Re-scan the file automatically on every save                                                                                                         |
+| `owaspHelper.severity`            | string  | `"all"`                                                            | Minimum severity to report: `all`, `critical`, `warning`, `info`                                                                                     |
+| `owaspHelper.ignoredRules`        | array   | `[]`                                                               | Rule IDs to suppress, e.g. `["A03-XSS-INNERHTML", "GEN-HTTP-URL"]`                                                                                   |
+| `owaspHelper.fastScanExclude`     | array   | (see below)                                                        | Glob patterns excluded during **Fast Scan**. Defaults: `**/node_modules/**`, `**/out/**`, `**/dist/**`, `**/.venv/**`, `**/*.min.js`, `**/*.min.jsx` |
+| `owaspHelper.fullScanExclude`     | array   | `["**/node_modules/**", "**/out/**", "**/dist/**", "**/.venv/**"]` | Glob patterns excluded during **Full Scan**                                                                                                          |
+| `owaspHelper.autoCheckForUpdates` | boolean | `true`                                                             | Check for new rule versions once per day on startup                                                                                                  |
+| `owaspHelper.rulesManifestUrl`    | string  | (GitHub raw URL)                                                   | URL of the remote `rules-manifest.json` used for update comparison                                                                                   |
 
 ---
 
@@ -66,6 +68,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 | Python                       | OWASP, General, Input Validation             |
 | Apache config / `.htaccess`  | CSP, General, HTTP Headers                   |
 | IIS `web.config` / `.config` | CSP, General, HTTP Headers                   |
+| nginx config                 | CSP, General, HTTP Headers                   |
 
 ---
 
@@ -188,14 +191,14 @@ Based on the [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp
 | ----------------------------- | ------------------------------------------------------------ | -------- |
 | `JS-DANGEROUS-INNER-HTML`     | Direct `innerHTML` assignment from user data                 | Critical |
 | `JS-OPEN-REDIRECT`            | `window.location` set from user-controlled source            | Critical |
-| `JS-POSTMESSAGE-NO-ORIGIN`    | `postMessage` listener with no origin check                  | Warning  |
+| `JS-POSTMESSAGE-NO-ORIGIN`    | `postMessage` listener with no origin check                  | Info     |
 | `JS-SETTIMEOUT-STRING`        | `setTimeout` / `setInterval` called with a string argument   | Critical |
 | `JS-SENSITIVE-STORAGE`        | Token / password stored in `localStorage` / `sessionStorage` | Warning  |
 | `JS-NOSQL-INJECTION`          | Mongoose / MongoDB query built from user-controlled data     | Critical |
 | `JS-REGEX-USER-INPUT`         | `new RegExp()` constructed from user input (ReDoS risk)      | Warning  |
 | `JS-SENDFILE-TRAVERSAL`       | Express `res.sendFile()` path built from user input          | Critical |
 | `JS-JWT-NO-VERIFY`            | JWT decoded without signature verification                   | Critical |
-| `JS-NO-RATE-LIMIT`            | Express route with no rate-limit middleware                  | Warning  |
+| `JS-NO-RATE-LIMIT`            | Express route with no rate-limit middleware                  | Info     |
 | `JS-CHILD-PROCESS-USER-INPUT` | `child_process.exec` / `spawn` with user-supplied arguments  | Critical |
 | `JS-INSECURE-COOKIE-OPTIONS`  | Cookie set without `httpOnly` or `secure` flags              | Warning  |
 
@@ -203,7 +206,7 @@ Based on the [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp
 
 ### G: HTTP Security Headers — 12 rules
 
-Applies to Apache `.conf` / `.htaccess` files and IIS `web.config`. Missing-header rules fire when a directive is absent from the whole file; misconfigured-value rules fire on the offending line.
+Applies to Apache `.conf` / `.htaccess` files, IIS `web.config`, and nginx configuration files. Missing-header rules fire when a directive is absent from the whole file; misconfigured-value rules fire on the offending line.
 
 | Rule ID                          | What it detects                                                               | Severity |
 | -------------------------------- | ----------------------------------------------------------------------------- | -------- |
@@ -270,3 +273,7 @@ To suppress rules globally across the workspace, add their IDs to settings:
 ## License
 
 MIT
+
+---
+
+[View full changelog](CHANGELOG.md)

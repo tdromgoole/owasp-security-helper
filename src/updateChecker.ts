@@ -1,16 +1,11 @@
 import * as vscode from "vscode";
 import * as https from "https";
 import { RULES_VERSION, RULES_METADATA } from "./rulesVersion";
-import {
-	owaspRules,
-	cspRules,
-	generalRules,
-	phpRules,
-	jsRules,
-	phpInputValidationRules,
-	httpHeaderRules,
-	inputValidationRules,
-} from "./rules";
+import { ALL_RULES } from "./rules";
+
+// Populate the shared metadata object so any code reading RULES_METADATA.totalRules
+// gets the correct count rather than the placeholder 0.
+RULES_METADATA.totalRules = ALL_RULES.length;
 
 /** Shape of the remote rules-manifest.json */
 interface RulesManifest {
@@ -20,20 +15,6 @@ interface RulesManifest {
 	changelogUrl: string;
 	releaseNotes?: string;
 }
-
-const ALL_RULES_COUNT =
-	owaspRules.length +
-	cspRules.length +
-	generalRules.length +
-	phpRules.length +
-	jsRules.length +
-	phpInputValidationRules.length +
-	httpHeaderRules.length +
-	inputValidationRules.length;
-
-// Populate the shared metadata object so any code reading RULES_METADATA.totalRules
-// gets the correct count rather than the placeholder 0.
-RULES_METADATA.totalRules = ALL_RULES_COUNT;
 
 /** Compare two calendar-version strings (YYYY.MM.PATCH). Returns true if remote > local. */
 function isNewer(remote: string, local: string): boolean {
@@ -57,6 +38,22 @@ function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T> {
 			return;
 		}
 		const req = https.get(url, { timeout: timeoutMs }, (res) => {
+			// Follow redirects (GitHub raw URLs occasionally redirect)
+			if (
+				res.statusCode !== undefined &&
+				res.statusCode >= 300 &&
+				res.statusCode < 400 &&
+				res.headers.location
+			) {
+				res.resume(); // drain the response
+				const redirectUrl = res.headers.location;
+				if (!redirectUrl.startsWith("https://")) {
+					reject(new Error("Redirect to non-HTTPS URL blocked"));
+					return;
+				}
+				resolve(fetchJson<T>(redirectUrl, timeoutMs));
+				return;
+			}
 			if (res.statusCode !== 200) {
 				reject(new Error(`HTTP ${res.statusCode}`));
 				return;
@@ -146,7 +143,7 @@ export async function checkForRuleUpdates(
 		} else if (!silent) {
 			vscode.window.showInformationMessage(
 				`OWASP Security Helper: Rules are up to date (v${RULES_VERSION}). ` +
-					`${ALL_RULES_COUNT} rules active covering ${RULES_METADATA.owaspCoverage}.`,
+					`${ALL_RULES.length} rules active covering ${RULES_METADATA.owaspCoverage}.`,
 			);
 		}
 	} catch (err) {
@@ -180,7 +177,7 @@ export function showRulesStatus(): void {
 		},
 		{
 			label: `$(checklist) Total rules loaded`,
-			description: String(ALL_RULES_COUNT),
+			description: String(ALL_RULES.length),
 		},
 		{
 			label: `$(globe) OWASP coverage`,
@@ -192,35 +189,35 @@ export function showRulesStatus(): void {
 		},
 		{
 			label: "OWASP Top 10 rules",
-			description: `${owaspRules.length} rules`,
+			description: `${ALL_RULES.filter((r) => /^A\d/.test(r.id)).length} rules`,
 		},
 		{
 			label: "Content Security Policy rules",
-			description: `${cspRules.length} rules`,
+			description: `${ALL_RULES.filter((r) => r.id.startsWith("CSP-")).length} rules`,
 		},
 		{
 			label: "PHP-specific rules",
-			description: `${phpRules.length} rules`,
+			description: `${ALL_RULES.filter((r) => r.id.startsWith("PHP-") && !r.id.startsWith("PHP-IV")).length} rules`,
 		},
 		{
 			label: "PHP input validation rules",
-			description: `${phpInputValidationRules.length} rules`,
+			description: `${ALL_RULES.filter((r) => r.id.startsWith("PHP-IV")).length} rules`,
 		},
 		{
 			label: "JavaScript/TypeScript rules",
-			description: `${jsRules.length} rules`,
+			description: `${ALL_RULES.filter((r) => r.id.startsWith("JS-")).length} rules`,
 		},
 		{
 			label: "General secure coding rules",
-			description: `${generalRules.length} rules`,
+			description: `${ALL_RULES.filter((r) => r.id.startsWith("GEN-")).length} rules`,
 		},
 		{
 			label: "HTTP security header rules",
-			description: `${httpHeaderRules.length} rules`,
+			description: `${ALL_RULES.filter((r) => r.id.startsWith("HDR-")).length} rules`,
 		},
 		{
 			label: "Input validation rules",
-			description: `${inputValidationRules.length} rules`,
+			description: `${ALL_RULES.filter((r) => r.id.startsWith("IV-")).length} rules`,
 		},
 	];
 

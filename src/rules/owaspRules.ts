@@ -50,7 +50,10 @@ export const owaspRules: SecurityRule[] = [
 			"python",
 			"php",
 		],
-		patterns: [/(?:createHash|hashlib\.md5)\s*\(\s*['"]md5['"]\s*\)/i],
+		patterns: [
+			/(?:createHash)\s*\(\s*['"]md5['"]\s*\)/i,
+			/hashlib\.md5\s*\(/i,
+		],
 		fixDescription:
 			'Replace MD5 with SHA-256 (crypto.createHash("sha256")) or bcrypt/argon2 for passwords.',
 		reference: "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/",
@@ -187,8 +190,8 @@ export const owaspRules: SecurityRule[] = [
 			"typescriptreact",
 		],
 		patterns: [
-			/\.innerHTML\s*=\s*(?!['"`]<)/,
-			/\.outerHTML\s*=\s*(?!['"`]<)/,
+			/\.innerHTML\s*=(?!\s*['"`]<)/,
+			/\.outerHTML\s*=(?!\s*['"`]<)/,
 			/document\.write\s*\(/,
 			/document\.writeln\s*\(/,
 		],
@@ -316,13 +319,14 @@ export const owaspRules: SecurityRule[] = [
 			"php",
 		],
 		patterns: [
-			// Fires when res.cookie() is called WITHOUT secure:true — avoids matching properly-configured cookies
-			/res\.cookie\s*\([^)]*\)(?![^)]*secure\s*:\s*true)/,
+			// PHP setcookie without proper flags
 			/setcookie\s*\([^)]*\)/i,
+			// Python Flask/Django response.set_cookie
 			/response\.set_cookie\s*\([^)]*\)/i,
 		],
 		fixDescription:
-			'Always set { secure: true, httpOnly: true, sameSite: "Strict" } on sensitive cookies.',
+			'Always set { secure: true, httpOnly: true, sameSite: "Strict" } on sensitive cookies. ' +
+			"For Express (Node.js), the JS-INSECURE-COOKIE-OPTIONS rule provides more precise detection.",
 		reference:
 			"https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/",
 	},
@@ -451,8 +455,8 @@ export const owaspRules: SecurityRule[] = [
 		patterns: [
 			// Express routes without csrf middleware visible on same line
 			/(?:app|router)\.(?:post|put|patch|delete)\s*\(\s*['"`][^'"` ]+['"`]\s*,\s*(?!.*csrf)/i,
-			// PHP form processing without token check
-			/\$_(?:POST|REQUEST)\s*\[.*\].*(?!=.*csrf|token)/i,
+			// PHP form processing where the whole line contains no csrf/token reference
+			/^(?!.*(?:csrf|token)).*\$_(?:POST|REQUEST)\s*\[/i,
 		],
 		fixDescription:
 			"Apply CSRF middleware (e.g. csurf for Express, or synchronizer token pattern for PHP) " +
@@ -588,9 +592,10 @@ export const owaspRules: SecurityRule[] = [
 	{
 		id: "A06-KNOWN-VULNERABLE-PACKAGE",
 		category: "A06: Vulnerable & Outdated Components",
-		title: "Import of a known historically vulnerable package",
+		title: "Import of a critically vulnerable package",
 		description:
-			"These packages have had high-severity CVEs and should be audited or replaced.",
+			"These packages have known critical RCE or sandbox-escape CVEs regardless of version. " +
+			"Use the dependency scanner (OWASP Helper: Check Dependencies) for version-specific auditing.",
 		severity: "warning",
 		languages: [
 			"javascript",
@@ -599,20 +604,14 @@ export const owaspRules: SecurityRule[] = [
 			"typescriptreact",
 		],
 		patterns: [
-			// node-serialize - RCE
+			// node-serialize - RCE via constructor property (CVE-2017-5941)
 			/require\s*\(\s*['"]node-serialize['"]\s*\)/i,
-			// lodash < 4.17.21 - prototype pollution / RCE
-			/require\s*\(\s*['"]lodash['"]\s*\)/i,
-			// minimist < 1.2.6 - prototype pollution
+			// minimist < 1.2.6 - prototype pollution (CVE-2021-44906)
 			/require\s*\(\s*['"]minimist['"]\s*\)/i,
-			// jsonwebtoken < 9.0.0 - verification bypass
-			/require\s*\(\s*['"]jsonwebtoken['"]\s*\)/i,
-			// request (deprecated with open CVEs)
-			/require\s*\(\s*['"]request['"]\s*\)/i,
 		],
 		fixDescription:
-			"Run 'npm audit' to check for known vulnerabilities. " +
-			"Update to the latest patched versions or replace deprecated packages.",
+			"Replace node-serialize entirely — it is not safe to fix by version upgrade. " +
+			"For minimist, upgrade to >= 1.2.6 or switch to a maintained alternative like mri.",
 		reference:
 			"https://owasp.org/Top10/A06_2021-Vulnerable_and_Outdated_Components/",
 	},
