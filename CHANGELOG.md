@@ -5,6 +5,15 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [0.6.1] — 2026-04-14
+
+### Fixed
+
+- **PDF export — "Printing is not available" error** — when Chrome's `--headless=new` renderer rejects `Page.printToPDF` (a known limitation in some Chrome builds and environments), the exporter now automatically retries with `--headless` (classic headless mode), which reliably supports PDF printing.
+- **PDF export — timeout on large reports** — PDF generation capped each severity section at 300 cards in the rendered HTML. Reports with thousands of findings (e.g. 9 000+) previously caused Chrome to time out during rendering; sections beyond 300 entries now show a notice directing users to the interactive HTML report for the full list.
+
+---
+
 ## [0.6.0] — 2026-04-14
 
 ### Added

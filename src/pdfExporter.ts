@@ -572,13 +572,23 @@ function buildPdfHtml(
 		);
 	};
 
+	/** Maximum cards rendered per severity section to keep Chrome renderable. */
+	const PDF_MAX_PER_SECTION = 300;
+
 	const section = (heading: string, items: PdfFinding[]): string => {
 		if (items.length === 0) {
 			return "";
 		}
+		const total = items.length;
+		const visible = items.slice(0, PDF_MAX_PER_SECTION);
+		const notice =
+			total > PDF_MAX_PER_SECTION
+				? `<div class="cap-notice">Showing first ${PDF_MAX_PER_SECTION} of ${total} findings &mdash; open the HTML report to view all.</div>`
+				: "";
 		return (
-			`<h2>${pdfEsc(heading)} <span class="cnt">(${items.length})</span></h2>\n` +
-			items.map(card).join("\n")
+			`<h2>${pdfEsc(heading)} <span class="cnt">(${total})</span></h2>\n` +
+			notice +
+			visible.map(card).join("\n")
 		);
 	};
 
@@ -619,6 +629,7 @@ function buildPdfHtml(
 		`.cat{font-size:0.75em;color:#888}\n` +
 		`.no-issues{padding:16px;text-align:center;color:#27ae60;font-size:1.1em}\n` +
 		`.mit{margin-top:20px;padding-top:10px;border-top:2px dashed #27ae60}\n` +
+		`.cap-notice{font-size:0.82em;color:#8a6200;background:#fff8e1;border-left:3px solid #f0b429;padding:4px 10px;margin-bottom:8px;border-radius:2px}\n` +
 		`a{color:#2471a3}\n` +
 		`</style></head>\n<body>\n` +
 		`<h1>OWASP Security Report</h1>\n` +
@@ -725,40 +736,71 @@ export async function convertReportToPdf(htmlPath: string): Promise<string> {
 	const { url: reportUrl, stop: stopServer } =
 		await serveContentLocally(htmlContent);
 
-	const userDataDir = path.join(
-		os.tmpdir(),
-		`owasp-pdf-${crypto.randomBytes(8).toString("hex")}`,
-	);
-	const debugPort = await getFreePort();
-	const child = spawn(
-		browser,
-		[
-			"--headless=new",
-			"--disable-gpu",
-			"--no-sandbox",
-			"--disable-extensions",
-			"--disable-background-networking",
-			...(process.platform === "linux"
-				? ["--disable-dev-shm-usage"]
-				: []),
-			`--user-data-dir=${userDataDir}`,
-			`--remote-debugging-port=${debugPort}`,
-			"about:blank",
-		],
-		{ stdio: "ignore", detached: false },
-	);
+	/**
+	 * Attempt to print with a specific headless flag.
+	 * `--headless=new` is tried first; if Chrome reports "Printing is not
+	 * available" (a known limitation of the new headless renderer in some
+	 * environments) we retry with `--headless` (the classic headless mode).
+	 */
+	const tryPrint = async (headlessFlag: string): Promise<string> => {
+		const userDataDir = path.join(
+			os.tmpdir(),
+			`owasp-pdf-${crypto.randomBytes(8).toString("hex")}`,
+		);
+		const debugPort = await getFreePort();
+		const child = spawn(
+			browser,
+			[
+				headlessFlag,
+				"--disable-gpu",
+				"--no-sandbox",
+				"--disable-extensions",
+				"--disable-background-networking",
+				...(process.platform === "linux"
+					? ["--disable-dev-shm-usage"]
+					: []),
+				`--user-data-dir=${userDataDir}`,
+				`--remote-debugging-port=${debugPort}`,
+				"about:blank",
+			],
+			{ stdio: "ignore", detached: false },
+		);
+		try {
+			const wsUrl = await waitForDebugTarget(debugPort, 10_000);
+			const pdfBase64 = await cdpPrintToPdf(wsUrl, reportUrl, 120_000);
+			fs.writeFileSync(pdfPath, Buffer.from(pdfBase64, "base64"));
+			return pdfPath;
+		} finally {
+			child.kill();
+			try {
+				fs.rmSync(userDataDir, { recursive: true, force: true });
+			} catch {
+				// non-fatal
+			}
+		}
+	};
+
 	try {
-		const wsUrl = await waitForDebugTarget(debugPort, 10_000);
-		const pdfBase64 = await cdpPrintToPdf(wsUrl, reportUrl, 120_000);
-		fs.writeFileSync(pdfPath, Buffer.from(pdfBase64, "base64"));
-		return pdfPath;
+		// "--headless=new" uses the modern headless renderer but its
+		// Page.printToPDF support is unavailable in some Chrome builds /
+		// environments, producing "Printing is not available".  Fall back to
+		// the classic "--headless" mode which reliably supports PDF printing.
+		const headlessModes = ["--headless=new", "--headless"];
+		let lastError: Error | undefined;
+		for (const flag of headlessModes) {
+			try {
+				return await tryPrint(flag);
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				if (msg.includes("Printing is not available")) {
+					lastError = err instanceof Error ? err : new Error(msg);
+					continue;
+				}
+				throw err;
+			}
+		}
+		throw lastError ?? new Error("PDF conversion failed");
 	} finally {
 		stopServer();
-		child.kill();
-		try {
-			fs.rmSync(userDataDir, { recursive: true, force: true });
-		} catch {
-			// non-fatal
-		}
 	}
 }
