@@ -6,6 +6,7 @@ export { jsRules } from "./jsRules";
 export { phpInputValidationRules } from "./phpInputValidationRules";
 export { httpHeaderRules } from "./httpHeaderRules";
 export { inputValidationRules } from "./inputValidationRules";
+export { cisaRules } from "./cisaRules";
 
 import { owaspRules } from "./owaspRules";
 import { cspRules } from "./cspRules";
@@ -15,6 +16,7 @@ import { jsRules } from "./jsRules";
 import { phpInputValidationRules } from "./phpInputValidationRules";
 import { httpHeaderRules } from "./httpHeaderRules";
 import { inputValidationRules } from "./inputValidationRules";
+import { cisaRules } from "./cisaRules";
 import { SecurityRule } from "../types";
 
 /** The complete, ordered list of all bundled security rules. */
@@ -27,4 +29,5 @@ export const ALL_RULES: SecurityRule[] = [
 	...phpInputValidationRules,
 	...httpHeaderRules,
 	...inputValidationRules,
+	...cisaRules,
 ];

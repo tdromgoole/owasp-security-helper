@@ -5,6 +5,32 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [0.6.0] — 2026-04-14
+
+### Added
+
+- **CISA Secure-by-Design rules** — 14 new rules in `cisaRules.ts` based on [CISA Secure-by-Design guidance](https://www.cisa.gov/resources-tools/resources/secure-by-design). All rules are net-new and do not overlap with any existing OWASP, General, PHP, JS, or Input Validation rules:
+    - `CISA-PHP-UNSERIALIZE` — PHP `unserialize()` called on user-supplied data (object injection / RCE)
+    - `CISA-PY-PICKLE-UNSAFE` — `pickle.loads()` / `pickle.load()` — arbitrary code execution risk
+    - `CISA-PY-YAML-UNSAFE-LOAD` — `yaml.load()` without SafeLoader (RCE via YAML Python object tags)
+    - `CISA-CRYPTO-ECB-MODE` — ECB cipher mode used in JS/PHP/Python (deterministic, pattern-leaking ciphertext)
+    - `CISA-CRYPTO-HARDCODED-IV` — hardcoded IV or nonce in symmetric encryption across all three languages
+    - `CISA-JWT-ALG-NONE` — JWT configured to accept the `none` algorithm (signature bypass)
+    - `CISA-JWT-NO-ALG-RESTRICT` — `jwt.verify()` options missing an explicit `algorithms` list (algorithm confusion)
+    - `CISA-PHP-TYPE-JUGGLING` — loose equality (`==`) comparing password / hash / token variables (magic hash exploits)
+    - `CISA-PHP-DYNAMIC-CLASS` — dynamic class instantiation from a user-controlled string (`new $$var()`)
+    - `CISA-PHP-REMOTE-INCLUDE` — `include` / `require` with user input or a remote URL (RFI / LFI)
+    - `CISA-PY-SUBPROCESS-SHELL` — `subprocess.*(..., shell=True)` or `os.system(f"...")` (shell injection)
+    - `CISA-PY-SSL-NO-VERIFY` — TLS certificate verification disabled (`verify=False`, `ssl.CERT_NONE`, `InsecureRequestWarning`)
+    - `CISA-PY-JINJA2-AUTOESCAPE-OFF` — Jinja2 `Environment()` created without `autoescape=True` (XSS)
+    - `CISA-PY-XML-UNSAFE` — Python stdlib XML parsers (`ElementTree`, `minidom`, `xml.sax`) vulnerable to XXE and Billion Laughs DoS
+- **Clickable rule-ID filter in the report panel** — rule ID badges (e.g. `PHP-SQL-INJECTION`) in the Security Report panel are now interactive buttons. Clicking one populates the search box and filters the panel to show only findings for that rule. Clicking the same rule ID again clears the filter.
+- **PDF export — minimal HTML generation** (`buildPdfHtml`) — instead of serving the full 200k+ line interactive webview as a PDF source, `convertReportToPdf` now reads the companion `.json` report and generates a compact, JavaScript-free HTML document. This eliminates Chrome CDP timeout failures caused by rendering very large HTML documents.
+- **PDF export — in-memory HTTP server** (`serveContentLocally`) — the PDF pipeline now spins up a temporary `http.createServer` on `127.0.0.1:<random-port>` to serve the generated HTML buffer. This resolves Chrome's `file://` sandbox restrictions under `--headless=new` without writing any temporary files.
+- **PDF export — WebSocket fragment reassembly** — the internal `WsClient` now correctly accumulates fragmented WebSocket frames (FIN=0) before dispatching, preventing premature message-dispatch when Chrome splits large CDP responses across multiple frames.
+
+---
+
 ## [0.5.0] — 2026-04-13
 
 ### Added

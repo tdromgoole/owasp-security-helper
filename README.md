@@ -1,8 +1,8 @@
 # OWASP Security Helper
 
-A VS Code extension that detects insecure coding practices in real time using **OWASP Top 10 (2021)** rules, **Content Security Policy** analysis, dedicated **PHP**, **JavaScript / TypeScript**, and **Python** rule packs, HTTP security header validation for Apache / nginx / IIS, and input validation and file upload patterns based on the OWASP Cheat Sheet Series.
+A VS Code extension that detects insecure coding practices in real time using **OWASP Top 10 (2021)** rules, **Content Security Policy** analysis, dedicated **PHP**, **JavaScript / TypeScript**, and **Python** rule packs, HTTP security header validation for Apache / nginx / IIS, input validation and file upload patterns based on the OWASP Cheat Sheet Series, and **CISA Secure-by-Design** rules covering insecure deserialization, cryptographic failures, and unsafe language APIs.
 
-**110 rules** across 8 categories — diagnostics appear inline as you type, with Quick Fix actions and a full security report panel.
+**124 rules** across 9 categories — diagnostics appear inline as you type, with Quick Fix actions and a full security report panel.
 
 ![Report Example](https://raw.githubusercontent.com/tdromgoole/owasp-security-helper/refs/heads/main/images/reportExample.png)
 
@@ -21,10 +21,12 @@ A VS Code extension that detects insecure coding practices in real time using **
 | **Input validation & file upload** | 12 rules for JS/TS and Python: request param coercion, denylist sanitisation, SSTI, open redirect, file upload     |
 | **CSP analysis**                   | 8 rules detecting `unsafe-inline`, wildcards, missing directives, and report-uri                                   |
 | **General secure-coding rules**    | 7 rules covering hardcoded secrets, insecure TLS, prototype pollution, XXE, ReDoS                                  |
+| **CISA Secure-by-Design rules**    | 14 rules: insecure deserialization, ECB mode, hardcoded IV, JWT alg confusion, PHP RFI/LFI, Python subprocess/SSL  |
 | **Severity levels**                | Critical 🔴 / Warning 🟡 / Info 🔵 — configurable minimum threshold                                                |
 | **Quick Fixes**                    | Auto-fix, suppress with comment, or open OWASP reference docs                                                      |
-| **Security Report panel**          | Full webview summary: By Severity / By File / ✅ Mitigated tabs, severity filter chips, cancellation banner        |
+| **Security Report panel**          | Full webview summary: By Severity / By File / ✅ Mitigated tabs, severity filter chips, rule-ID click-to-filter    |
 | **Workspace scan**                 | Scan every supported file across the workspace; raw-byte reader bypasses the tokenizer for large files             |
+| **PDF export**                     | Export findings to PDF using Chrome CDP; minimal JS-free HTML generated from companion `.json` for reliability     |
 | **Saved HTML + JSON reports**      | Each scan writes a timestamped `.html` + `.json` report to `.securityReport/`                                      |
 | **Justification / mitigation**     | Add a suppression justification in-source; persists across rescans                                                 |
 | **Rule update checker**            | Compares bundled rules against a remote manifest and notifies on new versions                                      |
@@ -60,15 +62,15 @@ All commands are available via the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+
 
 ## Supported Languages
 
-| Language                     | Rule packs applied                           |
-| ---------------------------- | -------------------------------------------- |
-| JavaScript / JSX             | OWASP, CSP, General, JS/TS, Input Validation |
-| TypeScript / TSX             | OWASP, CSP, General, JS/TS, Input Validation |
-| PHP                          | OWASP, PHP, PHP Input Validation             |
-| Python                       | OWASP, General, Input Validation             |
-| Apache config / `.htaccess`  | CSP, General, HTTP Headers                   |
-| IIS `web.config` / `.config` | CSP, General, HTTP Headers                   |
-| nginx config                 | CSP, General, HTTP Headers                   |
+| Language                     | Rule packs applied                                 |
+| ---------------------------- | -------------------------------------------------- |
+| JavaScript / JSX             | OWASP, CSP, General, JS/TS, Input Validation, CISA |
+| TypeScript / TSX             | OWASP, CSP, General, JS/TS, Input Validation, CISA |
+| PHP                          | OWASP, PHP, PHP Input Validation, CISA             |
+| Python                       | OWASP, General, Input Validation, CISA             |
+| Apache config / `.htaccess`  | CSP, General, HTTP Headers                         |
+| IIS `web.config` / `.config` | CSP, General, HTTP Headers                         |
+| nginx config                 | CSP, General, HTTP Headers                         |
 
 ---
 
@@ -243,6 +245,29 @@ Based on the [OWASP Input Validation Cheat Sheet](https://cheatsheetseries.owasp
 | `IV-PY-UPLOAD-MIME-TRUST`    | Trusting `request.files[key].content_type` / `.mimetype` for type validation     | Critical |
 | `IV-PY-UPLOAD-WEB-ROOT`      | `file.save()` targeting `static/`, `uploads/`, or `public/` inside the web root  | Critical |
 | `IV-PY-ZIP-NO-VALIDATION`    | `zipfile.extractall()` without path-traversal validation (Zip Slip)              | Critical |
+
+---
+
+### I: CISA Secure-by-Design — 14 rules
+
+Based on [CISA Secure-by-Design guidance](https://www.cisa.gov/resources-tools/resources/secure-by-design). Covers vulnerability classes not already addressed by other rule packs.
+
+| Rule ID                         | Category                 | What it detects                                                                       | Severity |
+| ------------------------------- | ------------------------ | ------------------------------------------------------------------------------------- | -------- |
+| `CISA-PHP-UNSERIALIZE`          | Insecure Deserialization | PHP `unserialize()` called on user-controlled data (object injection / RCE)           | Critical |
+| `CISA-PY-PICKLE-UNSAFE`         | Insecure Deserialization | `pickle.loads()` / `pickle.load()` — arbitrary code execution                         | Critical |
+| `CISA-PY-YAML-UNSAFE-LOAD`      | Insecure Deserialization | `yaml.load()` without SafeLoader (YAML Python object tag execution)                   | Critical |
+| `CISA-CRYPTO-ECB-MODE`          | Cryptographic Failures   | ECB cipher mode in JS/PHP/Python (deterministic, pattern-leaking output)              | Critical |
+| `CISA-CRYPTO-HARDCODED-IV`      | Cryptographic Failures   | Hardcoded IV or nonce in symmetric encryption                                         | Critical |
+| `CISA-JWT-ALG-NONE`             | Authentication Failures  | JWT configured to accept `alg: none` (signature bypass)                               | Critical |
+| `CISA-JWT-NO-ALG-RESTRICT`      | Authentication Failures  | `jwt.verify()` options missing `algorithms` list (algorithm confusion)                | Warning  |
+| `CISA-PHP-TYPE-JUGGLING`        | Authentication Failures  | Loose equality (`==`) comparing password / hash / token values                        | Critical |
+| `CISA-PHP-DYNAMIC-CLASS`        | Injection                | Dynamic class instantiation from user-controlled string (`new $$var()`)               | Critical |
+| `CISA-PHP-REMOTE-INCLUDE`       | Injection                | `include` / `require` with user input or a remote URL (RFI / LFI)                     | Critical |
+| `CISA-PY-SUBPROCESS-SHELL`      | Injection                | `subprocess.*(..., shell=True)` or `os.system(f"...")` (shell injection)              | Critical |
+| `CISA-PY-SSL-NO-VERIFY`         | Cryptographic Failures   | TLS verification disabled (`verify=False`, `ssl.CERT_NONE`, `InsecureRequestWarning`) | Critical |
+| `CISA-PY-JINJA2-AUTOESCAPE-OFF` | Injection                | Jinja2 `Environment()` created without `autoescape=True` (XSS)                        | Critical |
+| `CISA-PY-XML-UNSAFE`            | Injection                | Python stdlib XML parsers vulnerable to XXE and Billion Laughs DoS                    | Warning  |
 
 ---
 

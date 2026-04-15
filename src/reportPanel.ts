@@ -109,7 +109,7 @@ function buildHtml(
 					<div class="finding-header">
 						<span class="badge mitigated">${MI_CHECK} MITIGATED</span>
 						<span class="badge ${f.rule.severity} muted">${SEVERITY_ICON[f.rule.severity]} ${f.rule.severity.toUpperCase()}</span>
-						<span class="rule-id">${escapeHtml(f.rule.id)}</span>
+					<button class="rule-id" data-rule-id="${escapeHtml(f.rule.id)}" title="Filter by ${escapeHtml(f.rule.id)}">${escapeHtml(f.rule.id)}</button>
 						${loc}
 						${ref}
 					</div>
@@ -124,7 +124,7 @@ function buildHtml(
 				<div class="finding ${f.rule.severity}" data-severity="${f.rule.severity}">
 					<div class="finding-header">
 						<span class="badge ${f.rule.severity}">${SEVERITY_ICON[f.rule.severity]} ${f.rule.severity.toUpperCase()}</span>
-						<span class="rule-id">${escapeHtml(f.rule.id)}</span>
+					<button class="rule-id" data-rule-id="${escapeHtml(f.rule.id)}" title="Filter by ${escapeHtml(f.rule.id)}">${escapeHtml(f.rule.id)}</button>
 						${loc}
 						<button class="justify-btn" data-justify="${globalIdx}" title="Add justification to suppress this finding">Add Justification</button>
 						${ref}
@@ -389,7 +389,10 @@ function buildHtml(
 		.badge.critical { background: #c0392b33; color: #e74c3c; }
 		.badge.warning  { background: #e67e2233; color: #e67e22; }
 		.badge.info     { background: #2980b933; color: #3498db; }
-		.rule-id { font-family: monospace; font-weight: 600; }
+		.rule-id { font-family: monospace; font-weight: 600; background: none;
+						 border: none; cursor: pointer; padding: 0; color: var(--vscode-textLink-foreground);
+						 font-size: inherit; text-decoration: underline dotted; }
+		.rule-id:hover { text-decoration: underline; }
 		.jump-btn { background: none; border: 1px solid var(--vscode-panel-border); border-radius: 4px;
 								color: var(--vscode-textLink-foreground); cursor: pointer; font-size: 0.8em;
 								padding: 1px 7px; font-family: var(--vscode-font-family); }
@@ -591,6 +594,22 @@ function buildHtml(
 
 		document.addEventListener('click', function(e) {
 			var target = e.target;
+
+			// Filter by rule ID
+			var ruleIdBtn = target.closest('[data-rule-id]');
+			if (ruleIdBtn) {
+				var ruleId = ruleIdBtn.getAttribute('data-rule-id').toLowerCase();
+				if (_searchTerm === ruleId) {
+					// Second click clears the filter
+					searchInput.value = '';
+					_searchTerm = '';
+				} else {
+					searchInput.value = ruleId;
+					_searchTerm = ruleId;
+				}
+				applyFilters();
+				return;
+			}
 
 			// Toggle filter chip (mitigated is exclusive with severity filters)
 			var filterChip = target.closest('[data-filter]');
