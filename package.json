@@ -2,7 +2,7 @@
 	"name": "owasp-security-helper",
 	"displayName": "OWASP Security Helper",
 	"description": "Detects insecure coding practices with OWASP Top 10 rules, Content Security Policy, HTTP security headers, PHP/JS/TS/Python input validation, and file upload patterns — inline diagnostics, quick fixes, and a security report panel.",
-	"version": "0.6.1",
+	"version": "0.7.0",
 	"publisher": "ThomasDromgoole",
 	"repository": {
 		"type": "git",

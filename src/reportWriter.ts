@@ -350,6 +350,153 @@ export function writeSecurityReport(
 }
 
 /**
+ * Escapes special Markdown characters in plain text (not inside code spans).
+ */
+function escapeMd(text: string): string {
+	return text.replace(/([\\`*_{}[\]()#+\-.!|>])/g, "\\$1");
+}
+
+function buildMarkdownReport(
+	findings: SecurityFinding[],
+	workspaceRoot: string,
+	scannedCount: number,
+	skippedCount: number,
+	generatedAt: Date,
+): string {
+	const activeFindings = findings.filter((f) => !f.justification);
+	const mitigatedFindings = findings.filter((f) => !!f.justification);
+	const critical = activeFindings.filter(
+		(f) => f.rule.severity === "critical",
+	);
+	const warning = activeFindings.filter((f) => f.rule.severity === "warning");
+	const info = activeFindings.filter((f) => f.rule.severity === "info");
+
+	const byFile = new Map<string, SecurityFinding[]>();
+	for (const f of activeFindings) {
+		const arr = byFile.get(f.filePath) ?? [];
+		arr.push(f);
+		byFile.set(f.filePath, arr);
+	}
+
+	const pad = (n: number): string => String(n).padStart(2, "0");
+	const dateStr = `${generatedAt.getFullYear()}-${pad(generatedAt.getMonth() + 1)}-${pad(generatedAt.getDate())} ${pad(generatedAt.getHours())}:${pad(generatedAt.getMinutes())}:${pad(generatedAt.getSeconds())}`;
+
+	const lines: string[] = [];
+
+	lines.push("# OWASP Security Report", "");
+	lines.push(
+		`**Generated:** ${dateStr}  |  **Scanned:** ${scannedCount} file(s)` +
+			(skippedCount > 0 ? `  |  **Skipped:** ${skippedCount}` : ""),
+		"",
+	);
+
+	// Summary table
+	lines.push("## Summary", "");
+	lines.push("| Severity | Count |");
+	lines.push("|----------|------:|");
+	lines.push(`| 🔴 Critical | ${critical.length} |`);
+	lines.push(`| 🟡 Warning | ${warning.length} |`);
+	lines.push(`| 🔵 Info | ${info.length} |`);
+	if (mitigatedFindings.length > 0) {
+		lines.push(`| ✅ Mitigated | ${mitigatedFindings.length} |`);
+	}
+	lines.push("");
+
+	function findingBlock(f: SecurityFinding): string {
+		const relPath = getRelativePath(f.filePath, workspaceRoot);
+		const block: string[] = [];
+		if (f.justification) {
+			block.push(
+				`### ~~\`${f.rule.id}\`~~ · ${relPath} — Line ${f.line + 1}`,
+				"",
+				`~~**${escapeMd(f.rule.title)}**~~`,
+				"",
+				`> ✅ **Justification:** ${escapeMd(f.justification)}`,
+			);
+		} else {
+			const ref = f.rule.reference
+				? `  |  [Learn more ↗](${f.rule.reference})`
+				: "";
+			block.push(
+				`### \`${f.rule.id}\` · ${relPath} — Line ${f.line + 1}`,
+				"",
+				`**${escapeMd(f.rule.title)}**`,
+				"",
+				escapeMd(f.rule.description),
+			);
+			if (f.rule.fixDescription) {
+				block.push("", `> **Fix:** ${escapeMd(f.rule.fixDescription)}`);
+			}
+			block.push(
+				"",
+				"```",
+				truncateMatch(f.matchedText),
+				"```",
+				"",
+				`**Category:** ${escapeMd(f.rule.category)}${ref}`,
+			);
+		}
+		return block.join("\n");
+	}
+
+	function severitySection(title: string, items: SecurityFinding[]): void {
+		if (items.length === 0) return;
+		lines.push(`## ${title} (${items.length})`, "");
+		for (const f of items) {
+			lines.push(findingBlock(f), "", "---", "");
+		}
+	}
+
+	if (activeFindings.length === 0) {
+		lines.push("✅ **No active security issues detected.**", "");
+	} else {
+		severitySection("🔴 Critical Issues", critical);
+		severitySection("🟡 Warnings", warning);
+		severitySection("🔵 Informational", info);
+	}
+
+	if (mitigatedFindings.length > 0) {
+		lines.push(`## ✅ Mitigated (${mitigatedFindings.length})`, "");
+		for (const f of mitigatedFindings) {
+			lines.push(findingBlock(f), "", "---", "");
+		}
+	}
+
+	return lines.join("\n");
+}
+
+/**
+ * Writes a Markdown security report into <workspaceRoot>/.securityReport/
+ * with the filename format YYYY-MM-DD_HH-MM-SS.md.
+ * Returns the path of the written file.
+ */
+export function writeMarkdownReport(
+	findings: SecurityFinding[],
+	workspaceRoot: string,
+	scannedCount: number,
+	skippedCount: number,
+): string {
+	const reportDir = path.join(workspaceRoot, ".securityReport");
+	fs.mkdirSync(reportDir, { recursive: true });
+
+	const now = new Date();
+	const pad = (n: number): string => String(n).padStart(2, "0");
+	const datePart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+	const timePart = `${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+	const mdPath = path.join(reportDir, `${datePart}_${timePart}.md`);
+
+	const md = buildMarkdownReport(
+		findings,
+		workspaceRoot,
+		scannedCount,
+		skippedCount,
+		now,
+	);
+	fs.writeFileSync(mdPath, md, "utf8");
+	return mdPath;
+}
+
+/**
  * Reads the companion `.json` file for a saved `.html` report and
  * reconstructs the `SecurityFinding[]` array (patterns omitted — display only).
  */

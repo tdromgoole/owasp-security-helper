@@ -4,6 +4,7 @@ import { randomFillSync } from "crypto";
 import { SecurityFinding, Severity } from "./types";
 import { DependencyResult, versionBumpType } from "./dependencyScanner";
 import { convertReportToPdf } from "./pdfExporter";
+import { writeMarkdownReport } from "./reportWriter";
 import { escapeHtml, truncateMatch, getRelativePath } from "./reportUtils";
 
 const _mi = (d: string): string =>
@@ -489,14 +490,16 @@ function buildHtml(
 		.pdf-btn:hover:not(:disabled) { background: var(--vscode-button-secondaryHoverBackground); }
 		.pdf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 		.pdf-btn-icon { vertical-align: -3px; margin-right: 5px; }
-		.mi { width: 1em; height: 1em; vertical-align: -0.15em; display: inline-block; }
-		@media print { .pdf-btn { display: none !important; } }
+		.mi { width: 1em; height: 1em; vertical-align: -0.15em; display: inline-block; }		.export-btns { display: flex; gap: 6px; flex-shrink: 0; }		@media print { .pdf-btn { display: none !important; } }
 	</style>
 </head>
 <body>
 	<div class="report-title-row">
 		<h1>OWASP Security Report</h1>
-		<button class="pdf-btn" id="pdf-btn"><svg class="pdf-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/></svg>Export to PDF</button>
+		<div class="export-btns">
+			<button class="pdf-btn" id="md-btn"><svg class="pdf-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zm-2 8l-2.5-2.5 1.41-1.41L10 14.17l3.59-3.58L15 12l-4 4zm1-4.5V10h2v4h1.5l-2.5 2.5L9 14h1.5z"/></svg>Export to Markdown</button>
+			<button class="pdf-btn" id="pdf-btn"><svg class="pdf-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M20 2H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-8.5 7.5c0 .83-.67 1.5-1.5 1.5H9v2H7.5V7H10c.83 0 1.5.67 1.5 1.5v1zm5 2c0 .83-.67 1.5-1.5 1.5h-2.5V7H15c.83 0 1.5.67 1.5 1.5v3zm4-3H19v1h1.5V11H19v2h-1.5V7h3v1.5zM9 9.5h1v-1H9v1zM4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm10 5.5h1v-3h-1v3z"/></svg>Export to PDF</button>
+		</div>
 	</div>
 	${scanSummary}
 	<div class="summary-bar">
@@ -700,6 +703,16 @@ function buildHtml(
 				vscode.postMessage({ command: 'convertToPdf' });
 			});
 		}
+		// Markdown export
+		var MD_BTN_LABEL = '<svg class="pdf-btn-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zm-2 8l-2.5-2.5 1.41-1.41L10 14.17l3.59-3.58L15 12l-4 4zm1-4.5V10h2v4h1.5l-2.5 2.5L9 14h1.5z"/></svg>Export to Markdown';
+		var mdBtn = document.getElementById('md-btn');
+		if (mdBtn) {
+			mdBtn.addEventListener('click', function() {
+				mdBtn.disabled = true;
+				mdBtn.textContent = 'Exporting\u2026';
+				vscode.postMessage({ command: 'exportMarkdown' });
+			});
+		}
 		window.addEventListener('message', function(event) {
 			var msg = event.data;
 			if (msg.command === 'pdfConverted') {
@@ -708,6 +721,12 @@ function buildHtml(
 			} else if (msg.command === 'pdfError') {
 				var btn = document.getElementById('pdf-btn');
 				if (btn) { btn.disabled = false; btn.innerHTML = PDF_BTN_LABEL; }
+			} else if (msg.command === 'mdExported') {
+				var btn = document.getElementById('md-btn');
+				if (btn) { btn.disabled = false; btn.innerHTML = MD_BTN_LABEL; }
+			} else if (msg.command === 'mdError') {
+				var btn = document.getElementById('md-btn');
+				if (btn) { btn.disabled = false; btn.innerHTML = MD_BTN_LABEL; }
 			}
 		});
 	</script>
@@ -884,6 +903,46 @@ export class SecurityReportPanel {
 								}`,
 							);
 						}
+					}
+				} else if (msg.command === "exportMarkdown") {
+					const workspaceRoot =
+						vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+					if (!workspaceRoot) {
+						vscode.window.showErrorMessage(
+							"OWASP Helper: No workspace folder open.",
+						);
+						this.panel.webview.postMessage({ command: "mdError" });
+						return;
+					}
+					try {
+						const mdPath = writeMarkdownReport(
+							this.findings,
+							workspaceRoot,
+							this.scannedCount ?? 0,
+							this.skippedCount ?? 0,
+						);
+						this.panel.webview.postMessage({
+							command: "mdExported",
+						});
+						const open = "Open Markdown";
+						const choice =
+							await vscode.window.showInformationMessage(
+								`OWASP Helper: Markdown report saved \u2014 ${path.basename(mdPath)}`,
+								open,
+							);
+						if (choice === open) {
+							const doc = await vscode.workspace.openTextDocument(
+								vscode.Uri.file(mdPath),
+							);
+							await vscode.window.showTextDocument(doc);
+						}
+					} catch (err) {
+						this.panel.webview.postMessage({ command: "mdError" });
+						vscode.window.showErrorMessage(
+							`OWASP Helper: Markdown export failed \u2014 ${
+								err instanceof Error ? err.message : String(err)
+							}`,
+						);
 					}
 				}
 			},

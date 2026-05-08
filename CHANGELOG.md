@@ -5,6 +5,14 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [0.7.0] — 2026-05-07
+
+### Added
+
+- **Markdown export** — the Security Report panel now includes an **Export to Markdown** button alongside the existing PDF export. Clicking it writes a timestamped `.md` file to `.securityReport/` and offers to open it directly in the editor. The report includes a summary table, all active findings grouped by severity, and any mitigated findings with their justifications. Markdown reports are portable, diff-friendly, and can be committed alongside project code.
+
+---
+
 ## [0.6.1] — 2026-04-14
 
 ### Fixed
