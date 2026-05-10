@@ -107,6 +107,21 @@ function buildOutdatedCard(r: DependencyResult, idx: number): string {
     </div>`;
 }
 
+function buildEolCard(r: DependencyResult, idx: number): string {
+	return `
+    <div class="dep-card eol-card" data-idx="${idx}">
+      <div class="dep-header">
+        <span class="dep-name">${escapeHtml(r.name)}</span>
+        <span class="dep-ver">${escapeHtml(r.resolvedVersion)}</span>
+        <span class="eco-badge eco-${escapeHtml(r.ecosystem)}">${escapeHtml(r.ecosystem)}</span>
+        <span class="eol-badge">EOL / DEPRECATED</span>
+        <button class="open-btn" data-file="${escapeHtml(r.sourceFile)}">Open ${escapeHtml(path.basename(r.sourceFile))} ↗</button>
+      </div>
+      <div class="eol-reason">${escapeHtml(r.deprecationReason ?? "No longer maintained")}</div>
+      <div class="eol-warning">⚠️ CVE feeds do not investigate unsupported version ranges. This package may be affected by vulnerabilities that will never receive an official CVE advisory or scanner alert — upgrade or replace it to restore coverage.</div>
+    </div>`;
+}
+
 function buildHtml(
 	_webview: vscode.Webview,
 	results: DependencyResult[],
@@ -136,13 +151,20 @@ function buildHtml(
 			return bumpA - bumpB || a.name.localeCompare(b.name);
 		});
 
+	const deprecated = results
+		.filter((r) => r.isDeprecated)
+		.sort((a, b) => a.name.localeCompare(b.name));
+
 	const upToDate = results.filter(
-		(r) => r.vulnerabilities.length === 0 && !r.isOutdated,
+		(r) =>
+			r.vulnerabilities.length === 0 && !r.isOutdated && !r.isDeprecated,
 	).length;
 
 	const noIssues =
-		vulnerable.length === 0 && outdated.length === 0
-			? `<div class="no-issues">✅ All ${results.length} scanned package${results.length !== 1 ? "s" : ""} are up to date with no known vulnerabilities.</div>`
+		vulnerable.length === 0 &&
+		outdated.length === 0 &&
+		deprecated.length === 0
+			? `<div class="no-issues">✅ All ${results.length} scanned package${results.length !== 1 ? "s" : ""} are up to date with no known vulnerabilities or EOL concerns.</div>`
 			: "";
 
 	// Build a meta array for file-open messages (indexed by dep-card data-idx)
@@ -162,6 +184,19 @@ function buildHtml(
 			? `<div class="empty-tab">✅ All packages are on the latest version.</div>`
 			: outdated
 					.map((r) => buildOutdatedCard(r, results.indexOf(r)))
+					.join("");
+
+	const eolTab =
+		deprecated.length === 0
+			? `<div class="empty-tab">✅ No deprecated or end-of-life packages detected.</div>`
+			: `<div class="eol-explainer">
+          <strong>The EOL blind spot:</strong> CVE feeds only investigate actively maintained version ranges.
+          Packages below are deprecated or past end-of-life — even if no CVE lists them as affected,
+          ~80% of vulnerabilities in supported versions also affect EOL versions that were never
+          officially investigated. These packages carry hidden risk your vulnerability scanner cannot see.
+        </div>` +
+				deprecated
+					.map((r) => buildEolCard(r, results.indexOf(r)))
 					.join("");
 
 	return /* html */ `<!DOCTYPE html>
@@ -248,6 +283,18 @@ function buildHtml(
     .no-issues  { padding: 24px; text-align: center; color: #27ae60; font-size: 1.05em; }
     .empty-tab  { padding: 16px 0; color: #27ae60; font-size: 0.95em; }
     .scan-info  { font-size: 0.82em; color: var(--vscode-descriptionForeground); margin-bottom: 10px; }
+    /* EOL / Deprecated cards */
+    .chip-eol   { background: #8e44ad33; color: #8e44ad; }
+    .eol-card   { border-left: 4px solid #8e44ad; }
+    .eol-badge  { padding: 2px 7px; border-radius: 4px; font-size: 0.78em; font-weight: 700;
+                  background: #8e44ad33; color: #8e44ad; margin-left: auto; }
+    .eol-reason { font-size: 0.87em; color: var(--vscode-descriptionForeground);
+                  margin-bottom: 6px; font-style: italic; }
+    .eol-warning { font-size: 0.82em; background: #8e44ad15; border-left: 3px solid #8e44ad;
+                   padding: 6px 10px; border-radius: 0 4px 4px 0; }
+    .eol-explainer { font-size: 0.87em; background: #8e44ad12; border: 1px solid #8e44ad44;
+                     border-radius: 6px; padding: 10px 14px; margin-bottom: 12px;
+                     line-height: 1.5; }
   </style>
 </head>
 <body>
@@ -256,6 +303,7 @@ function buildHtml(
   <div class="summary-bar">
     <span class="chip chip-vuln">🔴 Vulnerable: ${vulnerable.length}</span>
     <span class="chip chip-outdated">⏫ Outdated: ${outdated.length}</span>
+    <span class="chip chip-eol">⚰️ EOL / Deprecated: ${deprecated.length}</span>
     <span class="chip chip-ok">✅ Up to date: ${upToDate}</span>
     <span class="chip chip-total">📦 Total: ${results.length}</span>
   </div>
@@ -266,9 +314,11 @@ function buildHtml(
   <div class="tabs">
     <button class="tab-btn active" data-tab="vulnerable">🔴 Vulnerable (${vulnerable.length})</button>
     <button class="tab-btn" data-tab="outdated">⏫ Outdated (${outdated.length})</button>
+    <button class="tab-btn" data-tab="eol">⚰️ EOL / Deprecated (${deprecated.length})</button>
   </div>
   <div id="tab-vulnerable">${vulnTab}</div>
-  <div id="tab-outdated" style="display:none">${outdatedTab}</div>`
+  <div id="tab-outdated" style="display:none">${outdatedTab}</div>
+  <div id="tab-eol" style="display:none">${eolTab}</div>`
 			: ""
   }
   <script nonce="${nonce}">

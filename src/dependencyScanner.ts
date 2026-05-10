@@ -23,6 +23,10 @@ export interface DependencyResult {
 	vulnerabilities: DependencyVuln[];
 	ecosystem: "npm" | "pypi" | "packagist";
 	sourceFile: string;
+	/** True if the package/version is deprecated, EOL, or abandoned */
+	isDeprecated: boolean;
+	/** Human-readable deprecation or EOL reason (null when not deprecated) */
+	deprecationReason: string | null;
 }
 
 export type VersionBump = "major" | "minor" | "patch" | "none";
@@ -468,14 +472,29 @@ async function getNpmLatest(name: string): Promise<string | null> {
 	}
 }
 
-async function getPypiLatest(name: string): Promise<string | null> {
+interface PypiPackageInfo {
+	latest: string | null;
+	deprecated: string | null;
+}
+
+async function getPypiInfo(name: string): Promise<PypiPackageInfo> {
 	try {
-		const data = await fetchJson<{ info: { version: string } }>(
-			`https://pypi.org/pypi/${encodeURIComponent(name)}/json`,
+		const data = await fetchJson<{
+			info: { version: string; classifiers: string[] };
+		}>(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
+		const latest = data.info?.version ?? null;
+		const classifiers: string[] = data.info?.classifiers ?? [];
+		const isInactive = classifiers.some((c) =>
+			c.includes("Development Status :: 7 - Inactive"),
 		);
-		return data.info?.version ?? null;
+		return {
+			latest,
+			deprecated: isInactive
+				? "Package is marked as Inactive on PyPI"
+				: null,
+		};
 	} catch {
-		return null;
+		return { latest: null, deprecated: null };
 	}
 }
 
@@ -499,17 +518,113 @@ async function getPackagistLatest(name: string): Promise<string | null> {
 	}
 }
 
+// ── EOL / Deprecation checks ──────────────────────────────────────────────────
+
+/**
+ * Maps well-known npm/PyPI package names to their endoflife.date product slug.
+ * Only frameworks/libraries with published EOL schedules are listed.
+ */
+const EOL_DATE_MAP: Record<string, string> = {
+	// JavaScript / npm
+	"@angular/core": "angular",
+	"@angular/common": "angular",
+	"@angular/router": "angular",
+	"@angular/forms": "angular",
+	"@angular/platform-browser": "angular",
+	"@angular/platform-browser-dynamic": "angular",
+	vue: "vue",
+	jquery: "jquery",
+	bootstrap: "bootstrap",
+	// Python / PyPI
+	django: "django",
+	ansible: "ansible-core",
+	"ansible-core": "ansible-core",
+};
+
+interface EolCycle {
+	cycle: string;
+	eol: string | boolean;
+	latest?: string;
+}
+
+/**
+ * Checks endoflife.date for a known framework/library.
+ * Returns a human-readable EOL message or null if not EOL / not tracked.
+ */
+async function checkEndOfLifeDate(
+	name: string,
+	version: string,
+): Promise<string | null> {
+	const product = EOL_DATE_MAP[name];
+	if (!product) {
+		return null;
+	}
+	try {
+		const cycles = await fetchJson<EolCycle[]>(
+			`https://endoflife.date/api/${encodeURIComponent(product)}.json`,
+		);
+		const parts = version.replace(/^v/, "").split(".");
+		// Try major.minor first, then major only
+		const cyclesToTry = [parts.slice(0, 2).join("."), parts[0]].filter(
+			Boolean,
+		);
+		for (const cycle of cyclesToTry) {
+			const found = cycles.find((c) => String(c.cycle) === cycle);
+			if (!found) {
+				continue;
+			}
+			if (found.eol === false) {
+				return null; // not yet EOL
+			}
+			if (typeof found.eol === "string") {
+				const eolDate = new Date(found.eol);
+				if (!isNaN(eolDate.getTime()) && eolDate <= new Date()) {
+					return `End of life since ${found.eol} (source: endoflife.date)`;
+				}
+			}
+			return null;
+		}
+	} catch {
+		/* endoflife.date unavailable or product not found — silently ignore */
+	}
+	return null;
+}
+
+/**
+ * Checks whether a specific npm package version carries a deprecation notice
+ * from the npm registry. Returns the deprecation message or null.
+ */
+async function checkNpmDeprecated(
+	name: string,
+	version: string,
+): Promise<string | null> {
+	try {
+		// Scoped packages: @scope/name → @scope%2Fname in URL path
+		const npmPath = name.startsWith("@")
+			? "@" + encodeURIComponent(name.slice(1))
+			: encodeURIComponent(name);
+		const data = await fetchJson<{ deprecated?: string }>(
+			`https://registry.npmjs.org/${npmPath}/${encodeURIComponent(version)}`,
+		);
+		return typeof data.deprecated === "string" ? data.deprecated : null;
+	} catch {
+		return null;
+	}
+}
+
 // ── Main scan entry point ─────────────────────────────────────────────────────
 
 export interface ScanDependenciesOptions {
 	progress?: vscode.Progress<{ message?: string; increment?: number }>;
 	token?: vscode.CancellationToken;
+	/** Optional extension context — when provided, local CVE DB is used to augment OSV results. */
+	extensionContext?: vscode.ExtensionContext;
 }
 
 export async function scanDependencies(
 	options: ScanDependenciesOptions = {},
 ): Promise<DependencyResult[]> {
-	const { progress, token } = options;
+	const { progress, token, extensionContext } = options;
 	const report = (msg: string) => progress?.report({ message: msg });
 
 	// 1. Discover manifest files
@@ -625,39 +740,113 @@ export async function scanDependencies(
 		return [];
 	}
 
-	// 4. Fetch latest versions with bounded concurrency
-	report("Fetching latest versions…");
+	// 4. Fetch latest versions and EOL/deprecation status with bounded concurrency
+	report("Fetching latest versions and EOL status…");
+
+	interface DepCheckResult {
+		latest: string | null;
+		deprecated: string | null;
+	}
+
 	const latestTasks = rawDeps.map(
-		(dep) => async (): Promise<string | null> => {
+		(dep) => async (): Promise<DepCheckResult> => {
 			if (token?.isCancellationRequested) {
-				return null;
+				return { latest: null, deprecated: null };
 			}
 			if (dep.ecosystem === "npm") {
-				return getNpmLatest(dep.name);
+				const [latest, npmDep, eolDep] = await Promise.all([
+					getNpmLatest(dep.name),
+					checkNpmDeprecated(dep.name, dep.resolvedVersion),
+					checkEndOfLifeDate(dep.name, dep.resolvedVersion),
+				]);
+				return { latest, deprecated: npmDep ?? eolDep };
 			}
 			if (dep.ecosystem === "pypi") {
-				return getPypiLatest(dep.name);
+				const [info, eolDep] = await Promise.all([
+					getPypiInfo(dep.name),
+					checkEndOfLifeDate(dep.name, dep.resolvedVersion),
+				]);
+				return {
+					latest: info.latest,
+					deprecated: info.deprecated ?? eolDep,
+				};
 			}
 			if (dep.ecosystem === "packagist") {
-				return getPackagistLatest(dep.name);
+				return {
+					latest: await getPackagistLatest(dep.name),
+					deprecated: null,
+				};
 			}
-			return null;
+			return { latest: null, deprecated: null };
 		},
 	);
-	const latestVersions = await withConcurrency(latestTasks, 8);
+	const depCheckResults = await withConcurrency(latestTasks, 8);
 
-	// 5. Assemble results
+	// 5. Augment with local CVE DB (if available and not cancelled)
+	const localCveMap = new Map<number, DependencyVuln[]>();
+	if (extensionContext && !token?.isCancellationRequested) {
+		report("Cross-referencing local CVE database…");
+		try {
+			const { searchByPackageName, getStatus } =
+				await import("./cveDatabase");
+			const dbStatus = getStatus(extensionContext);
+			if (dbStatus.downloaded) {
+				const localTasks = rawDeps.map((dep, idx) => async () => {
+					if (token?.isCancellationRequested) {
+						return;
+					}
+					try {
+						const records = await searchByPackageName(
+							extensionContext,
+							dep.name,
+						);
+						if (records.length > 0) {
+							const existing = new Set(
+								(vulnMap.get(idx) ?? []).map((v) => v.id),
+							);
+							const newVulns: DependencyVuln[] = records
+								.filter((r) => !existing.has(r.cveId))
+								.map((r) => ({
+									id: r.cveId,
+									summary:
+										r.description.slice(0, 200) || r.cveId,
+									severity: "unknown" as const,
+									url: `https://www.cve.org/CVERecord?id=${encodeURIComponent(r.cveId)}`,
+								}));
+							if (newVulns.length > 0) {
+								localCveMap.set(idx, newVulns);
+							}
+						}
+					} catch {
+						/* local DB unavailable — skip gracefully */
+					}
+				});
+				await withConcurrency(localTasks, 4);
+			}
+		} catch {
+			/* import failed or DB not available — continue without local CVEs */
+		}
+	}
+
+	// 6. Assemble results
 	return rawDeps.map((dep, i) => {
-		const latest = latestVersions[i];
+		const { latest, deprecated } = depCheckResults[i] ?? {
+			latest: null,
+			deprecated: null,
+		};
+		const osvVulns = vulnMap.get(i) ?? [];
+		const localVulns = localCveMap.get(i) ?? [];
 		return {
 			name: dep.name,
 			requestedVersion: dep.version,
 			resolvedVersion: dep.resolvedVersion,
 			latestVersion: latest,
 			isOutdated: latest !== null && isNewer(dep.resolvedVersion, latest),
-			vulnerabilities: vulnMap.get(i) ?? [],
+			vulnerabilities: [...osvVulns, ...localVulns],
 			ecosystem: dep.ecosystem,
 			sourceFile: dep.sourceFile,
+			isDeprecated: deprecated !== null,
+			deprecationReason: deprecated,
 		};
 	});
 }

@@ -5,6 +5,19 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [0.8.0] — 2026-05-09
+
+### Added
+
+- **End-of-life & deprecated dependency detection** — the dependency scanner now flags packages that have reached end-of-life or been officially marked deprecated, not just packages with known CVEs. This closes a significant security blind spot: once a package stops receiving updates, future vulnerabilities go unpatched even if no CVE exists yet. Affected packages appear in a dedicated **EOL / Deprecated** tab in the dependency panel, with the reason, badge, and a clear explanation of the risk.
+
+- **Local CVE database** — you can now download and maintain an offline copy of the full CVE catalogue (sourced from the [CVEProject/cvelistV5](https://github.com/CVEProject/cvelistV5) feed) directly inside VS Code. The dependency scanner automatically cross-references this local database alongside the existing live vulnerability feeds, giving broader coverage without relying solely on internet lookups. The database supports incremental delta updates so you don't need to re-download the full catalogue each time. Three new commands support this workflow:
+    - **Open CVE Database** — opens the CVE database manager panel showing current status and allowing searches by vendor or product name.
+    - **Download CVE Baseline** — performs an initial download of the full CVE catalogue into local storage.
+    - **Update CVE Database (Delta)** — applies only the changes since the last update, keeping the database current efficiently.
+
+---
+
 ## [0.7.0] — 2026-05-07
 
 ### Added

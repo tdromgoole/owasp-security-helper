@@ -16,7 +16,9 @@ A VS Code extension that spots insecure code as you type — covering **OWASP To
 - **Workspace scan** — scan every file in the project at once and get a consolidated report.
 - **Export to Markdown** — save the report as a portable `.md` file you can commit alongside your code or share with your team.
 - **Export to PDF** — save the report as a PDF via Chrome/Edge (requires a Chromium browser).
-- **Dependency vulnerability check** — flags known-vulnerable npm, Composer, pip, and Poetry packages.
+- **Dependency vulnerability check** — flags known-vulnerable npm, Composer, pip, and Poetry packages against live vulnerability feeds.
+- **End-of-life & deprecated dependency detection** — identifies packages that have reached end-of-life or been officially deprecated. These are a hidden security risk: they stop receiving CVE patches even when new vulnerabilities are discovered, a gap that standard vulnerability scanners miss.
+- **Local CVE database** — download and maintain an offline copy of the full CVE catalogue directly inside VS Code. The dependency scanner automatically cross-references it alongside live feeds, so you get broader coverage without relying solely on internet lookups.
 - **Justification / suppression** — mark a finding as intentionally accepted with a note; it stays visible but clearly marked as mitigated.
 - **Rule update checker** — notifies you when a newer ruleset is available.
 
@@ -32,14 +34,17 @@ JavaScript, TypeScript, JSX/TSX, PHP, Python, Apache config / `.htaccess`, IIS `
 
 Open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and search for **OWASP Helper**:
 
-| Command                    | What it does                                                        |
-| -------------------------- | ------------------------------------------------------------------- |
-| **Show Security Report**   | Open the report panel for all currently open files                  |
-| **Scan Workspace**         | Scan every supported file in the project                            |
-| **Full Scan Workspace**    | Same as above, including large files and running a dependency check |
-| **Check Dependencies**     | Check installed packages against known vulnerability lists          |
-| **Check for Rule Updates** | See whether a newer ruleset is available                            |
-| **Show Rules Status**      | Quick summary of the current rule version and coverage              |
+| Command                         | What it does                                                              |
+| ------------------------------- | ------------------------------------------------------------------------- |
+| **Show Security Report**        | Open the report panel for all currently open files                        |
+| **Scan Workspace**              | Scan every supported file in the project                                  |
+| **Full Scan Workspace**         | Same as above, including large files and running a dependency check       |
+| **Check Dependencies**          | Check installed packages against known vulnerability lists and EOL status |
+| **Open CVE Database**           | Open the CVE database manager panel                                       |
+| **Download CVE Baseline**       | Download the full CVE catalogue for offline use                           |
+| **Update CVE Database (Delta)** | Apply the latest incremental updates to the local CVE database            |
+| **Check for Rule Updates**      | See whether a newer ruleset is available                                  |
+| **Show Rules Status**           | Quick summary of the current rule version and coverage                    |
 
 ---
 

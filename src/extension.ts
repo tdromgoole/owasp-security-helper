@@ -9,6 +9,7 @@ import { SecurityFinding } from "./types";
 import { scanDependencies } from "./dependencyScanner";
 import { DependencyPanel } from "./dependencyPanel";
 import { convertReportToPdf } from "./pdfExporter";
+import { CvePanel } from "./cvePanel";
 
 const SUPPORTED_SELECTOR: vscode.DocumentSelector = [
 	{ language: "javascript" },
@@ -427,6 +428,7 @@ export function activate(context: vscode.ExtensionContext): void {
 							const results = await scanDependencies({
 								progress,
 								token,
+								extensionContext: context,
 							});
 							if (
 								!token.isCancellationRequested &&
@@ -484,6 +486,7 @@ export function activate(context: vscode.ExtensionContext): void {
 							const results = await scanDependencies({
 								progress,
 								token,
+								extensionContext: context,
 							});
 							if (token.isCancellationRequested) {
 								return;
@@ -528,6 +531,104 @@ export function activate(context: vscode.ExtensionContext): void {
 							);
 						}
 					});
+			},
+		),
+	);
+
+	// ── Commands: CVE Database ────────────────────────────────────────────────
+	context.subscriptions.push(
+		vscode.commands.registerCommand("owaspHelper.openCveDatabase", () => {
+			CvePanel.show(context);
+		}),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			"owaspHelper.downloadCveBaseline",
+			async () => {
+				CvePanel.show(context);
+				// Give the panel time to render, then trigger download automatically
+				await new Promise<void>((resolve) => setTimeout(resolve, 500));
+				// The user can click the download button in the panel.
+				// Alternatively expose this as a separate progress-notification flow:
+				await vscode.window.withProgress(
+					{
+						location: vscode.ProgressLocation.Notification,
+						title: "OWASP Helper: Downloading CVE database…",
+						cancellable: true,
+					},
+					async (progress, token) => {
+						const { downloadBaseline } =
+							await import("./cveDatabase");
+						await downloadBaseline(
+							context,
+							(evt) => {
+								if (evt.event === "status") {
+									progress.report({ message: evt.message });
+								} else if (evt.event === "download_progress") {
+									progress.report({
+										message: `Downloading… ${evt.percent}%`,
+									});
+								} else if (evt.event === "index_progress") {
+									progress.report({
+										message: `Indexing… ${evt.percent}%`,
+									});
+								} else if (evt.event === "complete") {
+									progress.report({
+										message: `Done — ${evt.totalCves?.toLocaleString()} CVEs indexed.`,
+									});
+								} else if (evt.event === "error") {
+									vscode.window.showErrorMessage(
+										`CVE DB: ${evt.message}`,
+									);
+								}
+							},
+							token,
+						);
+					},
+				);
+			},
+		),
+	);
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			"owaspHelper.updateCveDeltas",
+			async () => {
+				await vscode.window.withProgress(
+					{
+						location: vscode.ProgressLocation.Notification,
+						title: "OWASP Helper: Updating CVE database…",
+						cancellable: true,
+					},
+					async (progress, token) => {
+						const { updateDeltas } = await import("./cveDatabase");
+						await updateDeltas(
+							context,
+							(evt) => {
+								if (evt.event === "status") {
+									progress.report({ message: evt.message });
+								} else if (evt.event === "delta_progress") {
+									progress.report({
+										message: `Applying delta ${evt.current}/${evt.total}…`,
+									});
+								} else if (evt.event === "complete") {
+									const msg =
+										evt.message ??
+										`Done — ${evt.newCves} new, ${evt.updatedCves} updated.`;
+									vscode.window.showInformationMessage(
+										`OWASP Helper: ${msg}`,
+									);
+								} else if (evt.event === "error") {
+									vscode.window.showErrorMessage(
+										`CVE DB: ${evt.message}`,
+									);
+								}
+							},
+							token,
+						);
+					},
+				);
 			},
 		),
 	);

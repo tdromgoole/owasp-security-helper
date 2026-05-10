@@ -2,7 +2,7 @@
 	"name": "owasp-security-helper",
 	"displayName": "OWASP Security Helper",
 	"description": "Detects insecure coding practices with OWASP Top 10 rules, Content Security Policy, HTTP security headers, PHP/JS/TS/Python input validation, and file upload patterns — inline diagnostics, quick fixes, and a security report panel.",
-	"version": "0.7.0",
+	"version": "0.8.0",
 	"publisher": "ThomasDromgoole",
 	"repository": {
 		"type": "git",
@@ -42,7 +42,10 @@
 		"onCommand:owaspHelper.openSavedReport",
 		"onCommand:owaspHelper.checkForUpdates",
 		"onCommand:owaspHelper.showRulesStatus",
-		"onCommand:owaspHelper.convertReportToPdf"
+		"onCommand:owaspHelper.convertReportToPdf",
+		"onCommand:owaspHelper.openCveDatabase",
+		"onCommand:owaspHelper.downloadCveBaseline",
+		"onCommand:owaspHelper.updateCveDeltas"
 	],
 	"main": "./out/extension.js",
 	"contributes": {
@@ -78,6 +81,18 @@
 			{
 				"command": "owaspHelper.convertReportToPdf",
 				"title": "OWASP Helper: Export to PDF"
+			},
+			{
+				"command": "owaspHelper.openCveDatabase",
+				"title": "OWASP Helper: Open CVE Database"
+			},
+			{
+				"command": "owaspHelper.downloadCveBaseline",
+				"title": "OWASP Helper: Download CVE Baseline"
+			},
+			{
+				"command": "owaspHelper.updateCveDeltas",
+				"title": "OWASP Helper: Update CVE Database (Delta)"
 			}
 		],
 		"menus": {
@@ -107,6 +122,15 @@
 				{
 					"command": "owaspHelper.convertReportToPdf",
 					"when": "false"
+				},
+				{
+					"command": "owaspHelper.openCveDatabase"
+				},
+				{
+					"command": "owaspHelper.downloadCveBaseline"
+				},
+				{
+					"command": "owaspHelper.updateCveDeltas"
 				}
 			],
 			"explorer/context": [
@@ -214,9 +238,10 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run clean && npm run bundle",
-		"bundle": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --minify",
+		"bundle": "esbuild src/extension.ts --bundle --outfile=out/extension.js --external:vscode --format=cjs --platform=node --minify && npm run copyWasm",
 		"clean": "node -e \"require('fs').readdirSync('out', {withFileTypes:true}).forEach(f => { const p = 'out/' + f.name; if (f.isDirectory()) require('fs').rmSync(p, {recursive:true}); else if (f.name !== '.gitkeep') require('fs').unlinkSync(p); })\" || true",
-		"compile": "tsc -p ./",
+		"copyWasm": "node -e \"require('fs').copyFileSync('node_modules/sql.js/dist/sql-wasm.wasm', 'out/sql-wasm.wasm')\"",
+		"compile": "tsc -p ./ && npm run copyWasm",
 		"watch": "tsc -watch -p ./",
 		"test": "npm run compile && node out/test/rules.test.js",
 		"lint": "eslint src --ext ts",
@@ -224,6 +249,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^20.0.0",
+		"@types/sql.js": "^1.4.11",
 		"@types/vscode": "^1.85.0",
 		"@typescript-eslint/eslint-plugin": "^6.0.0",
 		"@typescript-eslint/parser": "^6.0.0",
@@ -231,5 +257,8 @@
 		"esbuild": "^0.28.0",
 		"eslint": "^8.0.0",
 		"typescript": "^5.3.0"
+	},
+	"dependencies": {
+		"sql.js": "^1.14.1"
 	}
 }
