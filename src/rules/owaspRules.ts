@@ -455,8 +455,10 @@ export const owaspRules: SecurityRule[] = [
 		patterns: [
 			// Express routes without csrf middleware visible on same line
 			/(?:app|router)\.(?:post|put|patch|delete)\s*\(\s*['"`][^'"` ]+['"`]\s*,\s*(?!.*csrf)/i,
-			// PHP form processing where the whole line contains no csrf/token reference
-			/^(?!.*(?:csrf|token)).*\$_(?:POST|REQUEST)\s*\[/i,
+			// PHP: fires only on handler ENTRY POINTS (REQUEST_METHOD check or the outer
+			// isset($_POST) gate) that contain no csrf/token/nonce reference on the same line.
+			// This avoids firing on every subsequent $_POST read inside an already-gated handler.
+			/(?:\$_SERVER\s*\[\s*['"]REQUEST_METHOD['"]\s*\]\s*===?\s*['"]POST['"]|if\s*\(\s*isset\s*\(\s*\$_(?:POST|REQUEST)\s*\[)(?!.*(?:csrf|token|nonce))/i,
 		],
 		fixDescription:
 			"Apply CSRF middleware (e.g. csurf for Express, or synchronizer token pattern for PHP) " +

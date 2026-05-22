@@ -5,6 +5,41 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [1.0.0] — 2026-05-21
+
+### Added
+
+- **8 new security rules (133 total)** — the following gaps identified during a rule audit have been filled:
+    - **PHP-CURL-SSRF** — flags `curl_setopt($ch, CURLOPT_URL, $_GET[...])` patterns. The existing A10-SSRF rule only catches `curl_exec` when user input appears directly in the call; the real-world PHP SSRF pattern uses a two-step setup that was not previously detected.
+    - **PHP-PHPINFO** — flags any call to `phpinfo()`. In production this exposes server configuration, PHP version, loaded extensions, and environment variables to anyone who can trigger the response.
+    - **PHP-DEBUG-OUTPUT** — flags `var_dump()`, `print_r()`, and `var_export()` when called with a PHP superglobal, catching debug statements that leak internal data in production.
+    - **PHP-SESSION-FIXATION** — flags `session_id($_GET[...])` / `session_id($_POST[...])` / `session_id($_COOKIE[...])`. Accepting a session ID from user input allows an attacker to set a known ID and hijack the session after the victim authenticates.
+    - **IV-PY-SQL-FSTRING** — flags Python SQL queries built with f-strings (`f"SELECT … {user_id}"`) or `.format()`. The existing A03-SQL-INJECTION rule only covered `%`-style string formatting; f-strings and `.format()` were completely missed.
+    - **IV-PY-DJANGO-CSRF-EXEMPT** — flags the `@csrf_exempt` decorator. This silently disables CSRF validation on the decorated view and is commonly applied to API endpoints and forgotten.
+    - **IV-PY-DJANGO-ALLOWED-HOSTS** — flags `ALLOWED_HOSTS = ['*']` in Django settings. This disables Host header validation and enables Host header injection attacks.
+    - **GEN-HARDCODED-CLOUD-KEY** — flags hardcoded AWS access key IDs (`AKIA…`/`ASIA…`), private key PEM blocks (`-----BEGIN … PRIVATE KEY-----`), and GCP API keys (`AIza…`) across all supported languages. The existing A02-HARDCODED-SECRET rule catches generic `password =` assignments but not credential-format patterns.
+
+---
+
+## [0.9.0] — 2026-05-21
+
+### Added
+
+- **CVE database status in the Security Report** — the Security Report panel now shows a banner indicating the state of your local CVE database at the time the report was generated:
+    - **Not downloaded** — a red banner alerts you that dependency vulnerability scanning is limited and provides a one-click button to open the CVE database manager.
+    - **Out of date** — an orange banner appears when the database has not been updated in more than 7 days, showing the exact last-updated date and time alongside an update button.
+    - **Current** — a blue info strip shows the date and time the database was last updated, so you always know how fresh your CVE coverage is.
+
+### Improved
+
+- **PHP false positive reduction** — several PHP rules were refined to dramatically cut the number of false positive findings in real-world codebases:
+    - SQL injection findings are now split into two levels: a **Critical** finding when user-supplied superglobal values (such as `$_POST` or `$_GET`) appear directly in a SQL string, and a lower-severity **Warning** when a generic variable is used — making it easier to triage real risks first.
+    - The CSRF check now fires once per form handler entry point rather than once per `$_POST` read, reducing noise in large PHP form handlers from hundreds of findings to one.
+    - Raw `$_POST` and `$_GET` rules now recognise validators that appear on the same line as the superglobal (for example `isset($_POST['field'])`), removing a common source of false positives on standard PHP null-checks.
+    - A context-aware suppression mechanism was added: if a `$_POST` or `$_GET` key was validated within the preceding few lines using a real validator (such as `is_numeric`, `filter_var`, or `preg_match`), the raw-use finding on that key is suppressed automatically. `isset` and `empty` are intentionally excluded from this suppression — they check existence, not content.
+
+---
+
 ## [0.8.0] — 2026-05-09
 
 ### Added

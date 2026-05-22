@@ -259,36 +259,159 @@ export const phpRules: SecurityRule[] = [
 		reference: "https://www.php.net/manual/en/function.password-hash.php",
 	},
 
-	// ── PHP SQL injection (dot-concatenation) ─────────────────────────────────
+	// ── PHP SQL injection — direct superglobal in query (critical) ───────────
+	//
+	// Mirrors the A03-SQL-INJECTION rule for JS/TS/Python: only fires when a
+	// PHP superglobal ($_GET, $_POST, $_REQUEST, $_COOKIE, $_SERVER, $_FILES)
+	// is concatenated or interpolated directly into a SQL string, which is an
+	// unambiguous injection sink regardless of surrounding context.
 
 	{
 		id: "PHP-SQL-INJECTION",
 		category: "A03: Injection",
-		title: "Potential SQL injection via PHP string concatenation",
+		title: "SQL injection via PHP superglobal in query",
 		description:
-			"Building SQL queries by dot-concatenating PHP variables allows attackers to " +
-			"manipulate the query. Use PDO or MySQLi prepared statements instead.",
+			"A PHP superglobal ($_GET, $_POST, $_REQUEST, $_COOKIE, $_SERVER, $_FILES) " +
+			"is concatenated or interpolated directly into a SQL string. This is an " +
+			"unambiguous injection vulnerability. Use PDO or MySQLi prepared statements.",
 		severity: "critical",
 		languages: ["php"],
 		patterns: [
-			// mysqli_query / pg_query called with a concatenated variable
-			/(?:mysqli_query|pg_query)\s*\([^)]*\.\s*\$/i,
-			// SQL keyword at the START of a quoted string, followed by PHP dot-concat with a variable
-			// e.g.  $sql = "SELECT ... WHERE email = '".$email."'";
-			// Requiring ["'] immediately before the keyword prevents matching SQL words used in
-			// plain English strings (e.g. "To update your password...").
-			/["']\s*(?:SELECT|INSERT|UPDATE|DELETE|EXEC|DECLARE)\b.*\.\s*\$\w+/i,
-			// PHP variable assigned a SQL string starting with a keyword, then dot-concat
-			// e.g.  $q = "SELECT ... WHERE id = '" . $id . "'";
-			/\$\w+\s*=\s*["']\s*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|DECLARE)\b.*\.\s*\$\w+/i,
-			// PHP variable assigned a double-quoted SQL string with direct variable interpolation
-			// e.g.  $sql = "UPDATE t SET col = '$var' WHERE ...";
-			// \s* after the opening quote ensures the SQL keyword is at the string start.
-			/\$\w+\s*=\s*"\s*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|EXEC|DECLARE)\b[^"]*\$\w+/i,
+			// mysqli_query / pg_query called with a superglobal concatenated in
+			/(?:mysqli_query|pg_query)\s*\([^)]*\.\s*\$_(?:GET|POST|REQUEST|COOKIE|SERVER|FILES)\b/i,
+			// SQL keyword in a quoted string, dot-concat with a superglobal
+			// e.g.  $sql = "SELECT * WHERE id = '".$_GET['id']."'";
+			/["']\s*(?:SELECT|INSERT|UPDATE|DELETE|EXEC|DECLARE)\b.*\.\s*\$_(?:GET|POST|REQUEST|COOKIE|SERVER|FILES)\b/i,
+			// PHP variable assigned SQL, then dot-concat with a superglobal
+			// e.g.  $q = "SELECT ... WHERE id = '" . $_POST['id'] . "'";
+			/\$\w+\s*=\s*["']\s*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|DECLARE)\b.*\.\s*\$_(?:GET|POST|REQUEST|COOKIE|SERVER|FILES)\b/i,
+			// PHP variable assigned double-quoted SQL with direct superglobal interpolation
+			// e.g.  $sql = "SELECT * WHERE id = '$_GET[id]'";
+			/\$\w+\s*=\s*"\s*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|EXEC|DECLARE)\b[^"]*\$_(?:GET|POST|REQUEST|COOKIE|SERVER|FILES)\b/i,
 		],
 		fixDescription:
 			"Use PDO or MySQLi prepared statements with bound parameters. " +
 			"Never concatenate user input directly into SQL strings.",
 		reference: "https://owasp.org/Top10/A03_2021-Injection/",
+	},
+
+	// ── PHP SQL injection — generic variable in query (warning) ──────────────
+	//
+	// Fires when any non-superglobal PHP variable appears in a SQL string.
+	// This covers tainted variables (e.g. $id = $_POST['id']) and structural
+	// variables that are genuinely hardcoded. Use owasp-ignore with a
+	// justification comment for confirmed false positives.
+
+	{
+		id: "PHP-SQL-VARIABLE",
+		category: "A03: Injection",
+		title: "Potential SQL injection via PHP variable in query",
+		description:
+			"A PHP variable is interpolated or concatenated into a SQL string. " +
+			"If this variable holds any user-controlled value (even indirectly), " +
+			"the query is vulnerable to injection. Verify the variable is never " +
+			"user-controlled, or switch to prepared statements.",
+		severity: "warning",
+		languages: ["php"],
+		patterns: [
+			// mysqli_query / pg_query called with any non-superglobal concatenated in.
+			// Negative lookahead excludes superglobals already caught by PHP-SQL-INJECTION.
+			/(?:mysqli_query|pg_query)\s*\([^)]*\.\s*\$(?!_(?:GET|POST|REQUEST|COOKIE|SERVER|FILES)\b)\w+/i,
+			// SQL keyword in a quoted string, dot-concat with a non-superglobal variable
+			/["']\s*(?:SELECT|INSERT|UPDATE|DELETE|EXEC|DECLARE)\b.*\.\s*\$(?!_(?:GET|POST|REQUEST|COOKIE|SERVER|FILES)\b)\w+/i,
+			// PHP variable assigned SQL, then dot-concat with a non-superglobal variable
+			/\$\w+\s*=\s*["']\s*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|DECLARE)\b.*\.\s*\$(?!_(?:GET|POST|REQUEST|COOKIE|SERVER|FILES)\b)\w+/i,
+			// PHP variable assigned double-quoted SQL with direct interpolation of a non-superglobal
+			/\$\w+\s*=\s*"\s*(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|EXEC|DECLARE)\b[^"]*\$(?!_(?:GET|POST|REQUEST|COOKIE|SERVER|FILES)\b)\w+/i,
+		],
+		fixDescription:
+			"Use PDO or MySQLi prepared statements with bound parameters. " +
+			"If this variable is intentionally hardcoded and never user-controlled, " +
+			"add an owasp-ignore comment above the line with a brief justification.",
+		reference: "https://owasp.org/Top10/A03_2021-Injection/",
+	},
+
+	// ── SSRF via curl_setopt ─────────────────────────────────────────────────
+
+	{
+		id: "PHP-CURL-SSRF",
+		category: "A10: Server-Side Request Forgery",
+		title: "SSRF via curl_setopt with user-controlled URL",
+		description:
+			"Setting CURLOPT_URL to a user-supplied value allows attackers to make " +
+			"the server issue requests to internal services, cloud metadata endpoints " +
+			"(e.g. 169.254.169.254), or other unintended destinations.",
+		severity: "critical",
+		languages: ["php"],
+		patterns: [
+			/curl_setopt\s*\([^,]+,\s*CURLOPT_URL\s*,[^)]*\$_(?:GET|POST|REQUEST|SERVER)\s*\[/i,
+		],
+		fixDescription:
+			"Validate and allowlist URLs before passing to curl. Reject non-HTTPS schemes, " +
+			"private IP ranges (10.x, 172.16-31.x, 192.168.x, 127.x), and cloud metadata addresses.",
+		reference:
+			"https://owasp.org/Top10/A10_2021-Server-Side_Request_Forgery_%28SSRF%29/",
+	},
+
+	// ── phpinfo() information disclosure ────────────────────────────────────
+
+	{
+		id: "PHP-PHPINFO",
+		category: "A05: Security Misconfiguration",
+		title: "phpinfo() called — information disclosure risk",
+		description:
+			"phpinfo() outputs comprehensive server configuration, PHP version, loaded extensions, " +
+			"environment variables, and compile-time settings. This information accelerates " +
+			"targeted attacks against the server.",
+		severity: "warning",
+		languages: ["php"],
+		patterns: [/\bphpinfo\s*\(\s*\)/i],
+		fixDescription:
+			"Remove phpinfo() from all production files. If a diagnostic endpoint is " +
+			"needed during development, restrict it to localhost or authenticated admin users.",
+		reference:
+			"https://owasp.org/Top10/A05_2021-Security_Misconfiguration/",
+	},
+
+	// ── Debug output of user-supplied data ──────────────────────────────────
+
+	{
+		id: "PHP-DEBUG-OUTPUT",
+		category: "A05: Security Misconfiguration",
+		title: "Debug output of user-supplied data",
+		description:
+			"var_dump(), print_r(), and var_export() called with superglobals expose internal " +
+			"application structure to users. In production this leaks variable names, types, " +
+			"and values that aid further exploitation.",
+		severity: "warning",
+		languages: ["php"],
+		patterns: [
+			/(?:var_dump|print_r|var_export)\s*\(\s*\$_(?:GET|POST|REQUEST|SERVER|COOKIE|FILES|SESSION)/i,
+		],
+		fixDescription:
+			"Remove debug output statements before deploying. Use a structured logging " +
+			"library with configurable levels (e.g. Monolog) to capture diagnostic information " +
+			"without exposing it to end users.",
+		reference:
+			"https://owasp.org/Top10/A05_2021-Security_Misconfiguration/",
+	},
+
+	// ── Session fixation ────────────────────────────────────────────────────
+
+	{
+		id: "PHP-SESSION-FIXATION",
+		category: "A07: Identification & Authentication Failures",
+		title: "Session fixation — session ID from user input",
+		description:
+			"Calling session_id() with a user-supplied value lets an attacker set a known " +
+			"session ID before the victim authenticates, then hijack the authenticated session.",
+		severity: "critical",
+		languages: ["php"],
+		patterns: [/session_id\s*\(\s*\$_(?:GET|POST|REQUEST|COOKIE)/i],
+		fixDescription:
+			"Never accept a session ID from user input. Call session_regenerate_id(true) " +
+			"immediately after a successful login to issue a fresh, unpredictable session ID.",
+		reference:
+			"https://owasp.org/Top10/A07_2021-Identification_and_Authentication_Failures/",
 	},
 ];

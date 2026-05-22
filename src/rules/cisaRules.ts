@@ -269,10 +269,11 @@ export const cisaRules: SecurityRule[] = [
 		severity: "critical",
 		languages: ["php"],
 		patterns: [
-			// $passwordVar == something (loose, not ===)
-			/\$\w*(?:pass(?:word)?|pwd|hash|token|secret|pin|code|digest)\w*\s*==(?!=)\s*/i,
+			// $passwordVar == something (loose ==, not ===)
+			// (?<![=]) ensures we don't match the interior == of ===
+			/\$\w*(?:pass(?:word)?|pwd|hash|token|secret|pin|code|digest)\w*\s*(?<![=])==(?!=)\s*/i,
 			// something == $passwordVar
-			/\s*==(?!=)\s*\$\w*(?:pass(?:word)?|pwd|hash|token|secret|pin|code|digest)\w*/i,
+			/(?<![=])==(?!=)\s*\$\w*(?:pass(?:word)?|pwd|hash|token|secret|pin|code|digest)\w*/i,
 		],
 		fixDescription:
 			"Use strict equality (===) for all security-sensitive comparisons in PHP. " +

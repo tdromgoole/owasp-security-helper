@@ -38,6 +38,19 @@ export interface SecurityRule {
 	fixReplacer?: (lineText: string, match: RegExpMatchArray) => string;
 	/** Reference URL for more information */
 	reference?: string;
+	/**
+	 * Context-aware suppression: if the preceding `lines` lines contain the
+	 * same superglobal key reference (e.g. $_POST['userID']) alongside any of
+	 * the `safePatterns`, the finding is suppressed. Use this to avoid false
+	 * positives where validation happens in an enclosing `if` block on the
+	 * line(s) above the assignment.
+	 */
+	priorContextSafe?: {
+		/** How many lines above the match to inspect */
+		lines: number;
+		/** If any context line matches one of these, the finding is suppressed */
+		safePatterns: RegExp[];
+	};
 }
 
 export interface SecurityFinding {

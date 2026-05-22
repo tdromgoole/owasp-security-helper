@@ -1,7 +1,7 @@
 {
-	"rulesVersion": "2026.04.2",
-	"lastUpdated": "2026-04-13",
+	"rulesVersion": "2026.05.2",
+	"lastUpdated": "2026-05-21",
 	"owaspCoverage": "OWASP Top 10 (2021) — A01 through A10",
 	"changelogUrl": "https://github.com/tdromgoole/owasp-security-helper/releases",
-	"releaseNotes": "v0.5.0: nginx support, poetry.lock/Pipfile.lock scanning, 84-test suite, rule bug fixes, reduced false positives."
+	"releaseNotes": "v1.0.0: 8 new rules — PHP-CURL-SSRF, PHP-PHPINFO, PHP-DEBUG-OUTPUT, PHP-SESSION-FIXATION, IV-PY-SQL-FSTRING, IV-PY-DJANGO-CSRF-EXEMPT, IV-PY-DJANGO-ALLOWED-HOSTS, GEN-HARDCODED-CLOUD-KEY (133 rules total)."
 }

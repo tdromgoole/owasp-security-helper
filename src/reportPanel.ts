@@ -3,6 +3,7 @@ import * as vscode from "vscode";
 import { randomFillSync } from "crypto";
 import { SecurityFinding, Severity } from "./types";
 import { DependencyResult, versionBumpType } from "./dependencyScanner";
+import { CveDbStatus } from "./cveDatabase";
 import { convertReportToPdf } from "./pdfExporter";
 import { writeMarkdownReport } from "./reportWriter";
 import { escapeHtml, truncateMatch, getRelativePath } from "./reportUtils";
@@ -55,6 +56,7 @@ function buildHtml(
 	skippedCount?: number,
 	depResults?: DependencyResult[],
 	cancelled?: boolean,
+	cveStatus?: CveDbStatus,
 ): string {
 	const critical = findings.filter((f) => f.rule.severity === "critical");
 	const warning = findings.filter((f) => f.rule.severity === "warning");
@@ -323,6 +325,32 @@ function buildHtml(
 				? `<div class="scan-info"><span class="cancel-banner">${MI_ALERT} Scan was cancelled — results below are partial.</span></div>`
 				: "";
 
+	// ── CVE database status banner ────────────────────────────────────────────
+	let cveBanner = "";
+	if (cveStatus && !cveStatus.downloaded) {
+		cveBanner = `<div class="cve-banner cve-banner-error">${MI_ALERT} CVE database not downloaded — dependency vulnerability scanning is unavailable. <button class="cve-banner-btn" id="cve-open-btn">Download CVE Database</button></div>`;
+	} else if (cveStatus?.lastUpdated) {
+		const lastUpdatedDate = new Date(cveStatus.lastUpdated);
+		const stalenessDays = vscode.workspace
+			.getConfiguration("owaspHelper")
+			.get<number>("cveStalenessDays", 7);
+		const daysSinceUpdate = Math.floor(
+			(Date.now() - lastUpdatedDate.getTime()) / (1000 * 60 * 60 * 24),
+		);
+		const formattedDate = lastUpdatedDate.toLocaleString(undefined, {
+			year: "numeric",
+			month: "short",
+			day: "numeric",
+			hour: "2-digit",
+			minute: "2-digit",
+		});
+		if (daysSinceUpdate > stalenessDays) {
+			cveBanner = `<div class="cve-banner cve-banner-warn">${MI_WARNING} CVE database is <strong>${daysSinceUpdate} days</strong> out of date. Last updated: <strong>${escapeHtml(formattedDate)}</strong>. <button class="cve-banner-btn" id="cve-open-btn">Update CVE Database</button></div>`;
+		} else {
+			cveBanner = `<div class="cve-banner cve-banner-info">${MI_INFO} CVE database last updated: <strong>${escapeHtml(formattedDate)}</strong>.</div>`;
+		}
+	}
+
 	const severityContent =
 		activeFindings.length === 0
 			? `<div class="no-findings" style="text-align:left;padding:12px 0">${MI_CHECK} No active issues.</div>`
@@ -411,6 +439,18 @@ function buildHtml(
 		.scan-info { font-size: 0.82em; color: var(--vscode-descriptionForeground); margin-bottom: 10px; }
 		.skip-warn { color: #e67e22; }
 		.cancel-banner { color: #e74c3c; font-weight: 600; }
+		.cve-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+		              font-size: 0.85em; padding: 7px 12px; border-radius: 5px;
+		              margin-bottom: 10px; border-left: 4px solid; }
+		.cve-banner-error { background: #c0392b18; border-color: #e74c3c; color: var(--vscode-foreground); }
+		.cve-banner-warn  { background: #e67e2218; border-color: #e67e22; color: var(--vscode-foreground); }
+		.cve-banner-info  { background: #2980b918; border-color: #3498db; color: var(--vscode-foreground); }
+		.cve-banner-btn { padding: 2px 10px; border-radius: 4px; font-size: 0.9em; cursor: pointer;
+		                  border: 1px solid var(--vscode-panel-border);
+		                  background: var(--vscode-button-secondaryBackground);
+		                  color: var(--vscode-button-secondaryForeground);
+		                  font-family: var(--vscode-font-family); flex-shrink: 0; }
+		.cve-banner-btn:hover { background: var(--vscode-button-secondaryHoverBackground); }
 		/* File grouping */
 		.file-group { border: 1px solid var(--vscode-panel-border); border-radius: 6px;
 									margin-bottom: 10px; overflow: hidden; }
@@ -502,6 +542,7 @@ function buildHtml(
 		</div>
 	</div>
 	${scanSummary}
+	${cveBanner}
 	<div class="summary-bar">
 		<span class="summary-chip chip-critical filter-chip" data-filter="critical">${MI_CRITICAL} Critical: ${activeCritical.length}</span>
 		<span class="summary-chip chip-warning filter-chip" data-filter="warning">${MI_WARNING} Warnings: ${activeWarning.length}</span>
@@ -534,6 +575,14 @@ function buildHtml(
 		var _f = ${findingsMeta};
 		var _filters = new Set();
 		var _searchTerm = '';
+
+		// CVE database banner button
+		var cveBannerBtn = document.getElementById('cve-open-btn');
+		if (cveBannerBtn) {
+			cveBannerBtn.addEventListener('click', function() {
+				vscode.postMessage({ command: 'openCveDatabase' });
+			});
+		}
 
 		function matchesSearch(card) {
 			if (!_searchTerm) { return true; }
@@ -754,6 +803,7 @@ export class SecurityReportPanel {
 	private skippedCount: number | undefined;
 	private depResults: DependencyResult[] | undefined;
 	private cancelled: boolean = false;
+	private cveStatus: CveDbStatus | undefined;
 	private disposables: vscode.Disposable[] = [];
 	private lastReportPath?: string;
 
@@ -860,6 +910,10 @@ export class SecurityReportPanel {
 					// Optimistic update — reflect mitigation in the panel immediately
 					finding.justification = justification.trim();
 					this.render();
+				} else if (msg.command === "openCveDatabase") {
+					vscode.commands.executeCommand(
+						"owaspHelper.openCveDatabase",
+					);
 				} else if (msg.command === "convertToPdf") {
 					if (!this.lastReportPath) {
 						vscode.window.showErrorMessage(
@@ -960,6 +1014,7 @@ export class SecurityReportPanel {
 		skippedCount?: number,
 		cancelled?: boolean,
 		depResults?: DependencyResult[],
+		cveStatus?: CveDbStatus,
 	): void {
 		if (SecurityReportPanel.current) {
 			SecurityReportPanel.current.update(
@@ -968,6 +1023,7 @@ export class SecurityReportPanel {
 				skippedCount,
 				depResults,
 				cancelled,
+				cveStatus,
 			);
 			// Reveal in its current column without forcing a column change
 			SecurityReportPanel.current.panel.reveal(undefined, false);
@@ -979,6 +1035,7 @@ export class SecurityReportPanel {
 				skippedCount,
 				depResults,
 				cancelled,
+				cveStatus,
 			);
 		}
 	}
@@ -1002,12 +1059,16 @@ export class SecurityReportPanel {
 		skippedCount?: number,
 		depResults?: DependencyResult[],
 		cancelled?: boolean,
+		cveStatus?: CveDbStatus,
 	): void {
 		this.findings = findings;
 		this.scannedCount = scannedCount;
 		this.skippedCount = skippedCount;
 		this.depResults = depResults;
 		this.cancelled = cancelled ?? false;
+		if (cveStatus !== undefined) {
+			this.cveStatus = cveStatus;
+		}
 		this.render();
 	}
 
@@ -1024,6 +1085,7 @@ export class SecurityReportPanel {
 			this.skippedCount,
 			this.depResults,
 			this.cancelled,
+			this.cveStatus,
 		);
 	}
 

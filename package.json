@@ -2,7 +2,7 @@
 	"name": "owasp-security-helper",
 	"displayName": "OWASP Security Helper",
 	"description": "Detects insecure coding practices with OWASP Top 10 rules, Content Security Policy, HTTP security headers, PHP/JS/TS/Python input validation, and file upload patterns — inline diagnostics, quick fixes, and a security report panel.",
-	"version": "0.8.0",
+	"version": "1.0.0",
 	"publisher": "ThomasDromgoole",
 	"repository": {
 		"type": "git",
@@ -25,7 +25,9 @@
 		"vulnerability",
 		"injection",
 		"xss",
-		"csrf"
+		"csrf",
+		"php",
+		"cve"
 	],
 	"activationEvents": [
 		"onLanguage:javascript",
@@ -227,6 +229,12 @@
 					"type": "boolean",
 					"default": true,
 					"description": "Automatically check for new rule updates on startup (once per day)."
+				},
+				"owaspHelper.cveStalenessDays": {
+					"type": "number",
+					"default": 7,
+					"minimum": 1,
+					"description": "Number of days after which the local CVE database is considered out of date. A warning banner will appear in the Security Report when this threshold is exceeded."
 				},
 				"owaspHelper.rulesManifestUrl": {
 					"type": "string",

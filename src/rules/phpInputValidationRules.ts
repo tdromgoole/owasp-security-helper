@@ -31,14 +31,30 @@ export const phpInputValidationRules: SecurityRule[] = [
 		severity: "warning",
 		languages: ["php"],
 		patterns: [
-			// Direct use in function calls or assignments without a wrapping validator
-			/\$_GET\s*\[[^\]]+\]\s*(?!.*(?:filter_var|filter_input|intval|floatval|htmlspecialchars|preg_match|is_numeric|strip_tags|trim|addslashes))/i,
+			// Two-level exclusion:
+			//  1. Whole-line check: skip if any validator/safe-wrapper appears anywhere on the
+			//     line (catches validators that appear BEFORE $_GET, e.g. isset($_GET['x'])).
+			//  2. Key-level check: skip if the bracket content itself contains csrf/token/nonce
+			//     (avoids flagging CSRF/security-token reads regardless of the variable name).
+			// NOTE: csrf/token/nonce are intentionally NOT in the whole-line exclusion so that
+			// $myToken = $_GET['email'] (token only in the variable name) is still flagged.
+			/^(?!.*(?:isset|empty|filter_var|filter_input|intval|floatval|htmlspecialchars|htmlentities|preg_match|is_numeric|strip_tags|trim|in_array|addslashes)).*\$_GET\s*\[(?![^\]]*(?:csrf|token|nonce))[^\]]+\]/i,
 		],
 		fixDescription:
 			"Use filter_input(INPUT_GET, 'param', FILTER_SANITIZE_*) or validate with " +
 			"filter_var(), intval(), preg_match(), or htmlspecialchars() before use.",
 		reference:
 			"https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html",
+		priorContextSafe: {
+			// Suppress when the same $_GET key was validated within the preceding 5 lines,
+			// e.g. if (is_numeric($_GET['id'])) { $x = $_GET['id']; }
+			// NOTE: isset/empty are intentionally excluded — they only check existence,
+			// not content, so they do not constitute sufficient validation.
+			lines: 5,
+			safePatterns: [
+				/(?:is_numeric|filter_var|filter_input|intval|floatval|preg_match|is_string|in_array)\s*\(/i,
+			],
+		},
 	},
 
 	{
@@ -51,13 +67,31 @@ export const phpInputValidationRules: SecurityRule[] = [
 		severity: "warning",
 		languages: ["php"],
 		patterns: [
-			/\$_POST\s*\[[^\]]+\]\s*(?!.*(?:filter_var|filter_input|intval|floatval|htmlspecialchars|preg_match|is_numeric|strip_tags|trim))/i,
+			// Two-level exclusion:
+			//  1. Whole-line check: skip if any validator/safe-wrapper appears anywhere on the
+			//     line (catches validators that appear BEFORE $_POST, e.g. isset($_POST['x']),
+			//     filter_var($_POST['x'], ...), password_verify($_POST['p'])).
+			//  2. Key-level check: skip if the bracket content itself contains csrf/token/nonce
+			//     (avoids flagging CSRF/security-token reads regardless of the variable name).
+			// NOTE: csrf/token/nonce are intentionally NOT in the whole-line exclusion so that
+			// $token = $_POST['email'] (token only in the variable name) is still flagged.
+			/^(?!.*(?:isset|empty|filter_var|filter_input|intval|floatval|htmlspecialchars|htmlentities|preg_match|is_numeric|strip_tags|trim|in_array|password_verify|hash_equals|addslashes)).*\$_POST\s*\[(?![^\]]*(?:csrf|token|nonce))[^\]]+\]/i,
 		],
 		fixDescription:
 			"Validate $_POST values with filter_input(INPUT_POST, 'field', FILTER_VALIDATE_*) " +
 			"before any use. Apply type-specific validation (intval, preg_match, etc.).",
 		reference:
 			"https://cheatsheetseries.owasp.org/cheatsheets/Input_Validation_Cheat_Sheet.html",
+		priorContextSafe: {
+			// Suppress when the same $_POST key was validated within the preceding 5 lines,
+			// e.g. if (is_numeric($_POST['id'])) { $x = $_POST['id']; }
+			// NOTE: isset/empty are intentionally excluded — they only check existence,
+			// not content, so they do not constitute sufficient validation.
+			lines: 5,
+			safePatterns: [
+				/(?:is_numeric|filter_var|filter_input|intval|floatval|preg_match|is_string|in_array)\s*\(/i,
+			],
+		},
 	},
 
 	// ── filter_var / filter_input misuse ─────────────────────────────────────

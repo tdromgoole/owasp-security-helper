@@ -171,4 +171,31 @@ export const generalRules: SecurityRule[] = [
 		reference:
 			"https://owasp.org/www-community/vulnerabilities/Insecure_File_Upload",
 	},
+
+	// ── Hardcoded cloud / service credentials ────────────────────────────────
+
+	{
+		id: "GEN-HARDCODED-CLOUD-KEY",
+		category: "A02: Cryptographic Failures",
+		title: "Hardcoded cloud or service credential",
+		description:
+			"AWS access key IDs, GCP API keys, and private key PEM blocks found in source " +
+			"code can be harvested from version control and used to access cloud resources, " +
+			"decrypt data, or sign malicious payloads.",
+		severity: "critical",
+		languages: [],
+		patterns: [
+			// AWS access key ID (starts with AKIA, ASIA, AROA, or AIDA followed by 16 uppercase alphanumeric chars)
+			/(?:AKIA|ASIA|AROA|AIDA)[A-Z0-9]{16}/,
+			// Private key PEM block header
+			/-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----/,
+			// GCP API key (AIza prefix, 35 chars)
+			/AIza[0-9A-Za-z_\-]{35}/,
+		],
+		fixDescription:
+			"Remove credentials from source code immediately and rotate any exposed keys. " +
+			"Store secrets in environment variables or a secrets manager (AWS Secrets Manager, " +
+			"HashiCorp Vault, Azure Key Vault, GCP Secret Manager). Add secret patterns to .gitignore.",
+		reference: "https://owasp.org/Top10/A02_2021-Cryptographic_Failures/",
+	},
 ];

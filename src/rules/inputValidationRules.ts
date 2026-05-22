@@ -349,4 +349,72 @@ export const inputValidationRules: SecurityRule[] = [
 		reference:
 			"https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html#archive-file-management",
 	},
+
+	// ──────────────────────────────────────────────────────────────────────────
+	//  Python — Django / SQLAlchemy
+	// ──────────────────────────────────────────────────────────────────────────
+
+	// ── SQL query built with f-string or .format() ───────────────────────────
+
+	{
+		id: "IV-PY-SQL-FSTRING",
+		category: "A03: Injection",
+		title: "SQL query built with f-string or .format()",
+		description:
+			"Constructing SQL queries with f-strings or str.format() inserts values " +
+			"directly into the query text, enabling SQL injection. This applies to " +
+			"raw cursor.execute() calls as well as SQLAlchemy text() expressions.",
+		severity: "critical",
+		languages: ["python"],
+		patterns: [
+			// f-string containing a SQL keyword
+			/f['"](?:[^'"]*)?\b(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM)\b[^'"]*\{/i,
+			// .format() called on a SQL string
+			/['"](?:[^'"]*)?\b(?:SELECT|INSERT|UPDATE|DELETE|WHERE|FROM)\b[^'"]*['"]\s*\.format\s*\(/i,
+		],
+		fixDescription:
+			"Use parameterized queries: cursor.execute('SELECT … WHERE id = %s', (user_id,)) " +
+			"or SQLAlchemy bound parameters (sqlalchemy.text('… WHERE id = :id').bindparams(id=user_id)).",
+		reference: "https://owasp.org/Top10/A03_2021-Injection/",
+	},
+
+	// ── Django @csrf_exempt ───────────────────────────────────────────────────
+
+	{
+		id: "IV-PY-DJANGO-CSRF-EXEMPT",
+		category: "A04: Insecure Design",
+		title: "Django @csrf_exempt disables CSRF protection",
+		description:
+			"The @csrf_exempt decorator removes CSRF token validation from the decorated " +
+			"view. Any state-changing endpoint without CSRF protection is vulnerable to " +
+			"cross-site request forgery attacks.",
+		severity: "warning",
+		languages: ["python"],
+		patterns: [/@csrf_exempt/],
+		fixDescription:
+			"Remove @csrf_exempt. Ensure CsrfViewMiddleware is listed in MIDDLEWARE and " +
+			"use Django's {% csrf_token %} template tag or the csrfmiddlewaretoken form field. " +
+			"For API views, use DRF's SessionAuthentication which enforces CSRF by default.",
+		reference: "https://owasp.org/Top10/A04_2021-Insecure_Design/",
+	},
+
+	// ── Django ALLOWED_HOSTS wildcard ─────────────────────────────────────────
+
+	{
+		id: "IV-PY-DJANGO-ALLOWED-HOSTS",
+		category: "A05: Security Misconfiguration",
+		title: "Django ALLOWED_HOSTS set to wildcard",
+		description:
+			"Setting ALLOWED_HOSTS = ['*'] disables Django's HTTP Host header validation. " +
+			"This enables Host header injection attacks, which can poison password-reset " +
+			"links, cache poisoning, and other host-dependent logic.",
+		severity: "warning",
+		languages: ["python"],
+		patterns: [/ALLOWED_HOSTS\s*=\s*\[\s*['"]\*['"]\s*\]/],
+		fixDescription:
+			"Set ALLOWED_HOSTS to the explicit list of domains your application is served " +
+			"from, e.g. ALLOWED_HOSTS = ['example.com', 'www.example.com'].",
+		reference:
+			"https://owasp.org/Top10/A05_2021-Security_Misconfiguration/",
+	},
 ];

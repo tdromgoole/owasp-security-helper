@@ -10,6 +10,7 @@ import { scanDependencies } from "./dependencyScanner";
 import { DependencyPanel } from "./dependencyPanel";
 import { convertReportToPdf } from "./pdfExporter";
 import { CvePanel } from "./cvePanel";
+import { getStatus as getCveStatus } from "./cveDatabase";
 
 const SUPPORTED_SELECTOR: vscode.DocumentSelector = [
 	{ language: "javascript" },
@@ -160,12 +161,20 @@ export function activate(context: vscode.ExtensionContext): void {
 					lastScanSnapshot.findings,
 					lastScanSnapshot.scannedCount,
 					lastScanSnapshot.skippedCount,
+					undefined,
+					undefined,
+					getCveStatus(context),
 				);
 			} else {
 				// No workspace scan has been run yet — show per-file findings
 				SecurityReportPanel.show(
 					context.extensionUri,
 					Array.from(findingsCache.values()).flat(),
+					undefined,
+					undefined,
+					undefined,
+					undefined,
+					getCveStatus(context),
 				);
 			}
 		}),
@@ -362,6 +371,8 @@ export function activate(context: vscode.ExtensionContext): void {
 				scannedCount,
 				skippedCount,
 				scanWasCancelled,
+				undefined,
+				getCveStatus(context),
 			);
 
 			const activeCount = scanFindings.filter(
@@ -656,6 +667,9 @@ export function activate(context: vscode.ExtensionContext): void {
 						findings,
 						scannedCount,
 						skippedCount,
+						undefined,
+						undefined,
+						getCveStatus(context),
 					);
 					SecurityReportPanel.setReportPath(uri.fsPath);
 				} catch (err) {

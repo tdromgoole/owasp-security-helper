@@ -115,6 +115,46 @@ export function scanDocument(document: vscode.TextDocument): SecurityFinding[] {
 				pattern.lastIndex = 0;
 				const match = pattern.exec(lineText);
 				if (match) {
+					// ── Prior-context suppression ─────────────────────────────
+					// If the rule declares priorContextSafe, extract the
+					// superglobal key reference from the matched line and check
+					// whether the same key was validated on a preceding line.
+					// Example: $user_ID = $_POST['userID'] fires, but is
+					// suppressed when is_numeric($_POST['userID']) appears above.
+					if (rule.priorContextSafe) {
+						const { lines: ctxLines, safePatterns } =
+							rule.priorContextSafe;
+						// Extract the literal superglobal reference, e.g. $_POST['userID']
+						const keyRef =
+							/\$_(?:GET|POST|REQUEST)\s*\[[^\]]+\]/i.exec(
+								lineText,
+							)?.[0];
+						if (keyRef) {
+							let suppressed = false;
+							const start = Math.max(0, lineIdx - ctxLines);
+							for (
+								let ci = start;
+								ci < lineIdx && !suppressed;
+								ci++
+							) {
+								const ctxLine = document.lineAt(ci).text;
+								// Only suppress when the SAME key reference is also present
+								if (ctxLine.includes(keyRef)) {
+									for (const sp of safePatterns) {
+										sp.lastIndex = 0;
+										if (sp.test(ctxLine)) {
+											suppressed = true;
+											break;
+										}
+									}
+								}
+							}
+							if (suppressed) {
+								break;
+							}
+						}
+					}
+
 					const startChar = match.index ?? lineText.indexOf(match[0]);
 					const endChar = startChar + match[0].length;
 					const justification = getIgnoreJustification(
