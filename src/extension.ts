@@ -524,6 +524,39 @@ export function activate(context: vscode.ExtensionContext): void {
 		),
 	);
 
+	// ── Command: Ask Copilot to Fix ──────────────────────────────────────────
+	context.subscriptions.push(
+		vscode.commands.registerCommand(
+			"owaspHelper.askCopilotToFix",
+			(
+				rule: import("./types").SecurityRule,
+				diag: vscode.Diagnostic,
+				document: vscode.TextDocument,
+			) => {
+				const lineText = document
+					.lineAt(diag.range.start.line)
+					.text.trim();
+				const relPath = vscode.workspace.asRelativePath(document.uri);
+				const lineNumber = diag.range.start.line + 1;
+				const query =
+					`I have an OWASP Security Helper finding in \`${relPath}\` ` +
+					`on line ${lineNumber}.\n\n` +
+					`**Rule:** ${rule.id} — ${rule.title}\n` +
+					`**Category:** ${rule.category}\n` +
+					`**Severity:** ${rule.severity}\n\n` +
+					`**Flagged code (line ${lineNumber}):**\n\`\`\`\n${lineText}\n\`\`\`\n\n` +
+					`**Why this is a risk:** ${rule.description}\n\n` +
+					(rule.fixDescription
+						? `**Suggested fix direction:** ${rule.fixDescription}\n\n`
+						: "") +
+					`Please show me a corrected version of line ${lineNumber} that eliminates this vulnerability.`;
+				vscode.commands.executeCommand("workbench.action.chat.open", {
+					query,
+				});
+			},
+		),
+	);
+
 	// ── Command: Show Fix Guidance ────────────────────────────────────────────
 	context.subscriptions.push(
 		vscode.commands.registerCommand(

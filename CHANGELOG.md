@@ -5,6 +5,21 @@ This project uses [calendar versioning](https://calver.org/) for its rule set (`
 
 ---
 
+## [1.1.0] — 2026-06-07
+
+### Added
+
+- **GitHub Copilot integration — "Ask Copilot to fix" code action** — every OWASP Security Helper diagnostic now includes an **Ask Copilot to fix: \<RULE-ID\>** option in the Quick Fix lightbulb menu. Clicking it opens GitHub Copilot Chat pre-loaded with the rule ID, severity, a plain-English description of the vulnerability, the exact flagged line, and a request for a corrected version — no copy-pasting or context switching required. The command is registered as `owaspHelper.askCopilotToFix` and invokes `workbench.action.chat.open` with a fully-formed query.
+
+- **Workspace Copilot instructions** (`.github/copilot-instructions.md`) — a workspace-level instructions file that teaches GitHub Copilot about every security rule enforced by the extension. When generating new code in this workspace, Copilot will automatically avoid the patterns that would trigger diagnostics and suggest secure alternatives instead.
+
+- **Reusable security prompt files** (`.github/prompts/`) — three ready-made Copilot Chat prompt files for common security workflows:
+    - `analyze-finding.prompt.md` — explain a specific finding, walk through the exploit scenario, and provide a corrected version.
+    - `security-review-file.prompt.md` — request a full OWASP Top 10 review of the current file with an overall risk rating and prioritised fix list.
+    - `fix-vulnerability.prompt.md` — generate a secure replacement for a flagged code block, constrained to the project's language and existing dependencies.
+
+---
+
 ## [1.0.0] — 2026-05-21
 
 ### Added

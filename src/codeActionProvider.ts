@@ -110,6 +110,19 @@ export class SecurityCodeActionProvider implements vscode.CodeActionProvider {
 				openDocs.diagnostics = [diag];
 				actions.push(openDocs);
 			}
+
+			// ── Ask Copilot to fix this finding ──────────────────────────────────
+			const askCopilot = new vscode.CodeAction(
+				`Ask Copilot to fix: ${ruleId}`,
+				vscode.CodeActionKind.QuickFix,
+			);
+			askCopilot.command = {
+				command: "owaspHelper.askCopilotToFix",
+				title: "Ask Copilot to Fix",
+				arguments: [rule, diag, document],
+			};
+			askCopilot.diagnostics = [diag];
+			actions.push(askCopilot);
 		}
 
 		return actions;
